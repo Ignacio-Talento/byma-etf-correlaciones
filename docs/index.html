@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Correlaciones de ETFs en BYMA</title>
+<meta name="description" content="Matriz de correlaciones de los ETFs que cotizan en BYMA. Se actualiza todos los dias con el cierre de mercado.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='7' height='7' x='1' y='1' fill='%232a78d6'/%3E%3Crect width='7' height='7' x='8' y='8' fill='%23c74845'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+
+<header class="cabecera">
+  <div class="cabecera-txt">
+    <h1>Correlaciones de ETFs en BYMA</h1>
+    <p class="sub">Los <strong id="conteo-etfs">&mdash;</strong> ETFs que cotizan en BYMA como CEDEAR, correlacionados por sus retornos diarios.</p>
+  </div>
+  <div class="estado">
+    <div class="estado-dato"><span class="estado-lbl">Ultimo cierre</span><span class="estado-val" id="ultima-rueda">&mdash;</span></div>
+    <div class="estado-dato"><span class="estado-lbl">Actualizado</span><span class="estado-val" id="generado">&mdash;</span></div>
+    <button id="tema" class="btn-tema" type="button" title="Cambiar entre claro y oscuro" aria-label="Cambiar tema">&#9681;</button>
+  </div>
+</header>
+
+<div id="avisos" class="avisos" hidden></div>
+
+<!-- Una sola fila de filtros, arriba de todo lo que condiciona -->
+<section class="filtros" aria-label="Filtros">
+  <div class="filtro">
+    <label for="f-ventana">Ventana</label>
+    <select id="f-ventana">
+      <option value="21">1 mes (21 ruedas)</option>
+      <option value="63">3 meses (63)</option>
+      <option value="126" selected>6 meses (126)</option>
+      <option value="252">1 anio (252)</option>
+      <option value="504">2 anios (504)</option>
+      <option value="756">3 anios (756)</option>
+    </select>
+  </div>
+
+  <div class="filtro">
+    <label for="f-moneda">Moneda</label>
+    <select id="f-moneda">
+      <option value="usd" selected>Dolares</option>
+      <option value="ars">Pesos (via CCL)</option>
+    </select>
+  </div>
+
+  <div class="filtro">
+    <label for="f-orden">Orden</label>
+    <select id="f-orden">
+      <option value="cluster" selected>Por similitud</option>
+      <option value="categoria">Por categoria</option>
+      <option value="alfabetico">Alfabetico</option>
+    </select>
+  </div>
+
+  <div class="filtro filtro-cats">
+    <label>Categorias</label>
+    <div id="f-categorias" class="chips"></div>
+  </div>
+
+  <div class="filtro">
+    <label for="f-buscar">Resaltar</label>
+    <input id="f-buscar" type="search" placeholder="SPY, oro, cripto..." autocomplete="off">
+  </div>
+
+  <div class="filtro filtro-vista">
+    <label>Vista</label>
+    <div class="segmentado" role="group" aria-label="Vista">
+      <button type="button" data-vista="mapa" class="activo">Mapa</button>
+      <button type="button" data-vista="tabla">Tabla</button>
+    </div>
+  </div>
+</section>
+
+<main>
+  <div class="columnas">
+
+    <section class="panel panel-mapa" id="panel-mapa">
+      <div class="panel-cab">
+        <div>
+          <h2 id="titulo-mapa">Matriz de correlacion</h2>
+          <p class="panel-sub" id="sub-mapa">&mdash;</p>
+        </div>
+        <!-- Leyenda de escala: obligatoria en una escala continua -->
+        <figure class="leyenda">
+          <figcaption>Correlacion</figcaption>
+          <div class="leyenda-barra" id="leyenda-barra"></div>
+          <div class="leyenda-ticks"><span>-1</span><span>0</span><span>+1</span></div>
+          <p class="leyenda-pie">Se mueven al reves &middot; sin relacion &middot; se mueven juntos</p>
+        </figure>
+      </div>
+      <div class="mapa-scroll" id="mapa-scroll">
+        <svg id="mapa" role="img" aria-labelledby="titulo-mapa"></svg>
+      </div>
+      <p class="nota" id="nota-mapa"></p>
+    </section>
+
+    <section class="panel panel-tabla" id="panel-tabla" hidden>
+      <div class="panel-cab">
+        <div>
+          <h2>Todos los pares</h2>
+          <p class="panel-sub">La misma informacion del mapa, legible sin depender del color.</p>
+        </div>
+        <button type="button" id="descargar" class="btn">Descargar CSV</button>
+      </div>
+      <div class="tabla-scroll">
+        <table id="tabla-pares">
+          <thead><tr>
+            <th data-col="a">ETF</th><th data-col="b">ETF</th>
+            <th data-col="rho" class="num">Correlacion</th>
+            <th data-col="n" class="num">Ruedas</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="nota" id="nota-tabla"></p>
+    </section>
+
+    <aside class="lateral">
+      <section class="panel panel-detalle" id="panel-detalle">
+        <h2>Detalle del par</h2>
+        <div id="detalle-vacio" class="vacio">
+          <p>Tocá una celda del mapa para ver el par en detalle: cuánto se mueven juntos hoy y cómo cambió eso en el tiempo.</p>
+        </div>
+        <div id="detalle" hidden>
+          <p class="par-nombre"><span id="det-a"></span> <span class="par-vs">vs</span> <span id="det-b"></span></p>
+          <p class="par-desc"><span id="det-a-desc"></span><br><span id="det-b-desc"></span></p>
+          <div class="cifra">
+            <span class="cifra-val" id="det-rho">&mdash;</span>
+            <span class="cifra-lbl" id="det-lectura">&mdash;</span>
+          </div>
+          <dl class="minidatos">
+            <div><dt>Ruedas usadas</dt><dd id="det-n">&mdash;</dd></div>
+            <div><dt>Minimo movil</dt><dd id="det-min">&mdash;</dd></div>
+            <div><dt>Maximo movil</dt><dd id="det-max">&mdash;</dd></div>
+          </dl>
+          <figure class="movil">
+            <figcaption>Correlacion movil <span id="det-ventana-lbl"></span>, ultimos 2 anios</figcaption>
+            <svg id="movil" role="img" aria-label="Evolucion de la correlacion movil del par"></svg>
+            <div class="movil-eje"><span id="movil-desde"></span><span id="movil-hasta"></span></div>
+          </figure>
+        </div>
+      </section>
+
+      <section class="panel panel-extremos">
+        <h2>Extremos de la ventana</h2>
+        <div class="extremos-grupo">
+          <h3>Los que más se mueven juntos</h3>
+          <ol class="lista-pares" id="lista-alta"></ol>
+        </div>
+        <div class="extremos-grupo">
+          <h3>Los que menos se acompañan</h3>
+          <ol class="lista-pares" id="lista-baja"></ol>
+        </div>
+        <p class="nota" id="nota-extremos"></p>
+      </section>
+    </aside>
+  </div>
+
+  <section class="panel panel-metodo">
+    <h2>Cómo está hecho</h2>
+    <div class="metodo-cols">
+      <div>
+        <h3>Universo</h3>
+        <p>BYMA define qué entra: el listado sale del panel de CEDEARs de BYMA y se revisa en cada corrida. Si BYMA lista un ETF nuevo, el job lo detecta y avisa.</p>
+      </div>
+      <div>
+        <h3>Precios</h3>
+        <p>Los retornos se calculan sobre el cierre ajustado del <strong>ETF subyacente en EE.UU.</strong>, no sobre el precio del CEDEAR. Varios de estos CEDEARs son listados recientes o operan poco, y un precio que no se mueve porque nadie operó ensucia la correlación.</p>
+      </div>
+      <div>
+        <h3>Moneda</h3>
+        <p>En dólares es la correlación del activo. En pesos se le suma el CCL, que es un factor común a todos y por eso empuja cada par hacia arriba: el efecto se nota sobre todo en los pares que en dólares dan negativo, que se comprimen hacia cero. Cuánto pesa depende de cuán movido esté el tipo de cambio.</p>
+        <p class="metodo-dato" id="metodo-ccl"></p>
+      </div>
+      <div>
+        <h3>El cálculo</h3>
+        <p>Correlación de Pearson sobre retornos logarítmicos diarios, par a par, usando sólo las ruedas donde ambos tienen dato. Una correlación de ventana corta se mueve mucho: mirá la serie móvil antes de sacar conclusiones.</p>
+      </div>
+    </div>
+    <p class="descargo">Datos de BYMA, Yahoo Finance y api.argentinadatos.com. Es una herramienta de análisis, no una recomendación de inversión. Las correlaciones pasadas no se sostienen solas: suelen dispararse justo cuando más se necesita que no lo hagan.</p>
+  </section>
+</main>
+
+<footer class="pie">
+  <span id="pie-fuentes"></span>
+  <a href="https://github.com/Ignacio-Talento/byma-etf-correlaciones">Código y datos en GitHub</a>
+</footer>
+
+<div id="tooltip" class="tooltip" hidden aria-hidden="true"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

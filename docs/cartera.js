@@ -298,6 +298,196 @@ function calcularCartera() {
   };
 }
 
+/* ------------------------------------------------- estabilidad (bootstrap) --- */
+
+/** Bootstrap por bloques circulares.
+    Remuestrear ruedas sueltas destruiria el agrupamiento de volatilidad y la
+    autocorrelacion, y daria una covarianza mas prolija que la real. Con
+    bloques contiguos esa estructura sobrevive. */
+function remuestrearBloques(filas, largoBloque, rnd) {
+  const T = filas.length;
+  const out = [];
+  while (out.length < T) {
+    const ini = Math.floor(rnd() * T);
+    for (let k = 0; k < largoBloque && out.length < T; k++) {
+      out.push(filas[(ini + k) % T]);
+    }
+  }
+  return out;
+}
+
+/** Generador reproducible: dos visitas a la pagina tienen que dar lo mismo. */
+function rngSemilla(s) {
+  let a = s >>> 0;
+  return function () {
+    a += 0x6D2B79F5;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function estadisticasDe(filas) {
+  const T = filas.length, N = filas[0].length;
+  const mu = new Array(N).fill(0);
+  for (const f of filas) for (let i = 0; i < N; i++) mu[i] += f[i];
+  for (let i = 0; i < N; i++) mu[i] /= T;
+  const cov = Array.from({ length: N }, () => new Array(N).fill(0));
+  for (let i = 0; i < N; i++) {
+    for (let j = i; j < N; j++) {
+      let s = 0;
+      for (const f of filas) s += (f[i] - mu[i]) * (f[j] - mu[j]);
+      cov[i][j] = cov[j][i] = s / (T - 1);
+    }
+  }
+  return { mu, cov };
+}
+
+/** Reoptimiza sobre muestras remuestreadas y devuelve, por ticker, cuanto
+    se mueve su peso. Es la respuesta a "¿cuanto de este 15% es senal?". */
+let TOKEN_BOOT = 0;
+
+function bootstrapPesos(r, muestras, alListo, alProgreso) {
+  const miToken = ++TOKEN_BOOT;
+  const tickers = r.tickers;
+  const N = tickers.length;
+  const d = estado.datos;
+  const largo = d.fechas.length;
+  const desde = Math.max(0, largo - CART.lookback);
+
+  const filas = [];
+  for (let t = desde; t < largo; t++) {
+    const fila = new Array(N);
+    let ok = true;
+    for (let i = 0; i < N; i++) {
+      const v = d.etfs[tickers[i]].ret[t];
+      if (v === null) { ok = false; break; }
+      fila[i] = v;
+    }
+    if (ok) filas.push(fila);
+  }
+  if (filas.length < 60) { alListo(null); return; }
+
+  const rnd = rngSemilla(20260903);
+  const acum = tickers.map(() => []);
+  const wBase = r.carteras[CART.perfil].w;
+  let hecho = 0;
+
+  function tanda() {
+    if (miToken !== TOKEN_BOOT) return;   // arrancó otra corrida: esta se descarta
+    const t0 = performance.now();
+    while (hecho < muestras && performance.now() - t0 < 90) {
+      const rem = remuestrearBloques(filas, 10, rnd);
+      const { mu, cov } = estadisticasDe(rem);
+      let w;
+      if (CART.perfil === 'conservador') {
+        const obj = (x) => -cuadratica(cov, x);
+        const grad = (x) => matVec(cov, x).map((v) => -2 * v);
+        w = ascender(wBase, obj, grad, CART.tope, 220).w;
+      } else {
+        const rfD = r.rfAnual / DIAS_ANIO;
+        const ex = mu.map((m) => m - rfD);
+        const obj = (x) => {
+          const v = cuadratica(cov, x);
+          return v <= 0 ? -Infinity : dot(ex, x) / Math.sqrt(v);
+        };
+        const grad = (x) => {
+          const cw = matVec(cov, x);
+          const sig = Math.sqrt(Math.max(cuadratica(cov, x), 1e-18));
+          const ew = dot(ex, x);
+          return ex.map((e, i) => e / sig - (ew * cw[i]) / (sig ** 3));
+        };
+        w = ascender(wBase, obj, grad, CART.tope, 220).w;
+      }
+      for (let i = 0; i < N; i++) acum[i].push(w[i]);
+      hecho++;
+    }
+    alProgreso(hecho / muestras);
+    if (hecho < muestras) {
+      setTimeout(tanda, 0);        // devolvemos el hilo: la pagina no se traba
+    } else {
+      const pct = (arr, p) => {
+        const s = arr.slice().sort((a, b) => a - b);
+        return s[Math.min(s.length - 1, Math.floor(p * s.length))];
+      };
+      alListo(tickers.map((tk, i) => ({
+        tk,
+        base: wBase[i],
+        mediana: pct(acum[i], 0.5),
+        p10: pct(acum[i], 0.10),
+        p90: pct(acum[i], 0.90),
+        frecuencia: acum[i].filter((x) => x > 0.01).length / acum[i].length,
+      })));
+    }
+  }
+  setTimeout(tanda, 0);
+}
+
+function dibujarEstabilidad(filas) {
+  const cont = $('#estabilidad');
+  const E = estado.datos.etfs;
+  if (!filas) { cont.innerHTML = '<p class="nota">Sin datos suficientes.</p>'; return; }
+
+  const conPeso = filas.filter((f) => f.base > 0.002 || f.frecuencia > 0.2)
+    .sort((a, b) => b.base - a.base || b.mediana - a.mediana);
+  const maxX = Math.max(CART.tope, ...conPeso.map((f) => f.p90)) * 1.02;
+  const col = colorPerfil(CART.perfil);
+
+  const filasHtml = conPeso.map((f) => {
+    const x = (v) => (v / maxX * 100).toFixed(2) + '%';
+    const anchoRango = (f.p90 - f.p10) / maxX * 100;
+    const seguro = f.frecuencia >= 0.8;
+    return `<tr title="${(E[f.tk].driver || '').replace(/"/g, '')}">
+      <td><span class="tk">${f.tk}</span></td>
+      <td class="num">${pctC(f.base)}</td>
+      <td class="celda-rango">
+        <span class="rango-pista"></span>
+        <span class="rango-barra" style="left:${x(f.p10)};width:${anchoRango.toFixed(2)}%;background:${col}"></span>
+        <span class="rango-punto" style="left:${x(f.base)}"></span>
+      </td>
+      <td class="num tenue">${pctC(f.p10)}&nbsp;–&nbsp;${pctC(f.p90)}</td>
+      <td class="num ${seguro ? '' : 'frag'}">${Math.round(f.frecuencia * 100)}%</td>
+    </tr>`;
+  }).join('');
+
+  const frecMedia = conPeso.reduce((a, f) => a + f.frecuencia, 0) / (conPeso.length || 1);
+  const firmes = conPeso.filter((f) => f.frecuencia >= 0.8).length;
+
+  cont.innerHTML = `
+    <table class="tabla-datos compacta tabla-estab">
+      <thead><tr>
+        <th>ETF</th><th class="num">Peso</th>
+        <th>Rango del peso según la muestra (p10–p90)</th>
+        <th class="num">Rango</th><th class="num">Aparece</th>
+      </tr></thead>
+      <tbody>${filasHtml}</tbody>
+    </table>
+    <p class="nota">Se remuestrea la ventana por bloques de 10 ruedas —para no romper el
+      agrupamiento de volatilidad— y se reoptimiza 150 veces. <strong>Aparece</strong> es en
+      qué porcentaje de esas muestras el ETF entra con más de 1%.
+      Sólo <strong>${firmes} de ${conPeso.length}</strong> posiciones aparecen en 8 de cada 10
+      muestras; la frecuencia media es ${Math.round(frecMedia * 100)}%.</p>`;
+}
+
+// El bootstrap tarda ~20 s. Cambiar de tema no cambia la cartera, asi que
+// se cachea por configuracion y solo se recalcula cuando algo la afecta.
+const CACHE_ESTAB = new Map();
+
+function correrEstabilidad(r) {
+  const cont = $('#estabilidad');
+  const clave = [CART.perfil, CART.lookback, CART.tope, CART.excluirApal,
+                 estado.datos.ultimaRueda].join('|');
+  if (CACHE_ESTAB.has(clave)) { dibujarEstabilidad(CACHE_ESTAB.get(clave)); return; }
+  cont.innerHTML = '<p class="nota calculando">Remuestreando la ventana y reoptimizando…</p>';
+  bootstrapPesos(r, 150,
+    (filas) => { CACHE_ESTAB.set(clave, filas); dibujarEstabilidad(filas); },
+    (p) => {
+      const n = cont.querySelector('.calculando');
+      if (n) n.textContent = `Remuestreando la ventana y reoptimizando… ${Math.round(p * 100)}%`;
+    });
+}
+
 /* -------------------------------------------------------------- render --- */
 
 const pctC = (x) => (x * 100).toFixed(1).replace('.', ',') + '%';
@@ -523,6 +713,7 @@ function recalcularCartera() {
   dibujarMezcla(c);
   comentario(r, c);
   dibujarFronteraSVG(r);
+  correrEstabilidad(r);
   $('#ruedas-usadas').textContent = r.ruedas;
   $('#rf-usada').textContent = pctC(r.rfAnual);
 }

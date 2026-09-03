@@ -14,15 +14,24 @@ const BT = {
   datos: null,
   costoPb: 50,        // puntos basicos por punta; en CEDEARs 50 es optimista
   escalaLog: true,
+  verLW: false,
 };
 
 const ESTRATEGIAS_BT = [
-  { id: 'maxsharpe', nombre: 'Máx. Sharpe', color: '#002060', opt: true },
-  { id: 'minvar',    nombre: 'Mín. varianza', color: '#145E81', opt: true },
-  { id: 'erc',       nombre: 'Paridad de riesgo', color: '#00B0F0', opt: true },
-  { id: 'equi',      nombre: '1/N', color: '#A7B2C8', opt: true },
-  { id: 'spy',       nombre: 'SPY', color: '#6B7280', opt: false },
+  { id: 'maxsharpe',    nombre: 'Máx. Sharpe', color: '#002060', opt: true },
+  { id: 'maxsharpe_lw', nombre: 'Máx. Sharpe + LW', color: '#0F4C68', opt: true, lw: true },
+  { id: 'minvar',       nombre: 'Mín. varianza', color: '#145E81', opt: true },
+  { id: 'minvar_lw',    nombre: 'Mín. var. + LW', color: '#3E8FB0', opt: true, lw: true },
+  { id: 'erc',          nombre: 'Paridad de riesgo', color: '#00B0F0', opt: true },
+  { id: 'equi',         nombre: '1/N', color: '#A7B2C8', opt: true },
+  { id: 'spy',          nombre: 'SPY', color: '#6B7280', opt: false },
 ];
+
+/** Las variantes con shrinkage se pueden ocultar: son siete curvas y el
+    hallazgo no esta ahi. Quien quiera verlas, las prende. */
+function visibles() {
+  return ESTRATEGIAS_BT.filter((e) => BT.verLW || !e.lw);
+}
 
 /* ------------------------------------------------------------- calculo --- */
 
@@ -96,7 +105,7 @@ function dibujarCurvas(r) {
   svg.setAttribute('width', W); svg.setAttribute('height', H);
 
   const F = BT.datos.fechas;
-  const todas = ESTRATEGIAS_BT.flatMap((e) => r.series[e.id].nav);
+  const todas = visibles().flatMap((e) => r.series[e.id].nav);
   const lo = Math.min(...todas), hi = Math.max(...todas);
   const Yv = BT.escalaLog ? (v) => Math.log(v) : (v) => v;
   const y0 = Yv(lo * 0.97), y1 = Yv(hi * 1.03);
@@ -124,7 +133,7 @@ function dibujarCurvas(r) {
   });
 
   // Los benchmarks van primero y mas finos: son la referencia, no el foco.
-  const orden = ESTRATEGIAS_BT.slice().sort((a, b) => (a.opt === b.opt ? 0 : a.opt ? 1 : -1));
+  const orden = visibles().slice().sort((a, b) => (a.opt === b.opt ? 0 : a.opt ? 1 : -1));
   const etiquetas = [];
   for (const e of orden) {
     const nav = r.series[e.id].nav;
@@ -171,7 +180,7 @@ function dibujarCurvas(r) {
 function dibujarTablaBT(r) {
   const tb = $('#tabla-bt tbody');
   tb.textContent = '';
-  const filas = ESTRATEGIAS_BT.map((e) => ({ e, ...r.series[e.id] }));
+  const filas = visibles().map((e) => ({ e, ...r.series[e.id] }));
   const mejorSharpe = Math.max(...filas.map((f) => f.met.sharpe));
   for (const f of filas) {
     const tr = document.createElement('tr');
@@ -205,13 +214,13 @@ function dibujarSensibilidad() {
   }
   BT.costoPb = guardado;
 
-  for (const e of ESTRATEGIAS_BT) {
+  for (const e of visibles()) {
     const tr = document.createElement('tr');
     let html = `<td><span class="serie-punto" style="background:${e.color}"></span>`
              + `<span class="tk">${e.nombre}</span></td>`;
     for (const c of costos) {
       const s = res[e.id][c];
-      const mejor = Math.max(...ESTRATEGIAS_BT.map((x) => res[x.id][c]));
+      const mejor = Math.max(...visibles().map((x) => res[x.id][c]));
       const esMejor = Math.abs(s - mejor) < 1e-9;
       html += `<td class="num ${esMejor ? 'destaca' : ''} ${c === BT.costoPb ? 'col-activa' : ''}">${num2B(s)}</td>`;
     }
@@ -227,7 +236,7 @@ function dibujarPorAnio(r) {
   const cab = $('#tabla-anios thead tr');
   cuerpo.textContent = '';
   cab.textContent = '';
-  cab.innerHTML = '<th>Año</th>' + ESTRATEGIAS_BT.map((e) =>
+  cab.innerHTML = '<th>Año</th>' + visibles().map((e) =>
     `<th class="num"><span class="serie-punto" style="background:${e.color}"></span>${e.nombre}</th>`).join('');
 
   const anios = [];
@@ -244,12 +253,12 @@ function dibujarPorAnio(r) {
     const tr = document.createElement('tr');
     let html = `<td class="tk">${a}</td>`;
     const vals = {};
-    for (const e of ESTRATEGIAS_BT) {
+    for (const e of visibles()) {
       const nav = r.series[e.id].nav;
       vals[e.id] = nav[fin] / nav[ini] - 1;
     }
     if (vals.maxsharpe > vals.equi) ganadas++;
-    for (const e of ESTRATEGIAS_BT) {
+    for (const e of visibles()) {
       const v = vals[e.id];
       html += `<td class="num ${v < 0 ? 'neg' : ''}">${pctB(v)}</td>`;
     }
@@ -266,7 +275,7 @@ function veredicto(r) {
   const eq = r.series.equi.met.sharpe;
   const spy = r.series.spy.met.sharpe;
   const erc = r.series.erc.met.sharpe;
-  const mejor = ESTRATEGIAS_BT.map((e) => ({ e, s: r.series[e.id].met.sharpe }))
+  const mejor = visibles().map((e) => ({ e, s: r.series[e.id].met.sharpe }))
     .sort((a, b) => b.s - a.s)[0];
   const to = Math.round((r.series.maxsharpe.turnover || 0) * 100);
 
@@ -279,7 +288,21 @@ function veredicto(r) {
     + `sostener y la única cuyo resultado cambia de signo según el costo. Movés el control de `
     + `arriba y se ve — a costo cero encabeza, y pasados los ~100 pb queda por debajo de no `
     + `hacer nada. Paridad de riesgo (${num2B(erc)}) y 1/N son mucho más indiferentes al costo `
-    + `porque casi no rotan.</p>`;
+    + `porque casi no rotan.</p>`
+    + notaShrinkage(r);
+}
+
+/** Cuanto aporto el shrinkage, medido y no afirmado. */
+function notaShrinkage(r) {
+  const pares = [['maxsharpe', 'maxsharpe_lw'], ['minvar', 'minvar_lw']];
+  const dif = pares.map(([a, b]) => r.series[b].met.sharpe - r.series[a].met.sharpe);
+  const maxDif = Math.max(...dif.map(Math.abs));
+  const toMv = r.series.minvar.turnover, toMvLw = r.series.minvar_lw.turnover;
+  return `<p class="nota">El <strong>shrinkage de Ledoit-Wolf</strong> sobre la covarianza `
+    + `mueve el Sharpe menos de ${maxDif.toFixed(2).replace('.', ',')} en ambas estrategias: `
+    + `su aporte acá es marginal. Donde sí ayuda es en la rotación — baja la de mínima varianza `
+    + `de ${Math.round(toMv * 100)}% a ${Math.round(toMvLw * 100)}% anual — y eso, con el costo `
+    + `de por medio, es lo único que termina valiendo. Prendé la casilla para verlas en el gráfico.</p>`;
 }
 
 function recalcularBT() {
@@ -319,6 +342,7 @@ window.iniciarBacktest = async function () {
     BT.escalaLog = e.target.checked;
     recalcularBT();
   });
+  $('#bt-lw').addEventListener('change', (e) => { BT.verLW = e.target.checked; recalcularBT(); });
   let rt;
   addEventListener('resize', () => {
     clearTimeout(rt);

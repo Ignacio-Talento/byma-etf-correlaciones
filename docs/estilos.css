@@ -586,3 +586,32 @@ ul.drivers li:last-child { border-bottom: 0; }
 .veredicto p { margin: 0 0 9px; }
 .veredicto strong { color: var(--tinta); }
 .bt-sesgo { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--linea); }
+
+/* =================================================== estabilidad de pesos === */
+
+.estab-bloque { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--linea); }
+.estab-bloque h3 { margin-bottom: 2px; }
+.estab-bloque .panel-sub { margin-bottom: 10px; }
+.calculando { font-style: italic; }
+
+.tabla-estab { table-layout: auto; }
+.tabla-estab .tenue { color: var(--tinta-apagada); font-size: 11px; white-space: nowrap; }
+.tabla-estab .frag { color: #C0392B; font-weight: 700; }
+:root[data-theme="dark"] .tabla-estab .frag,
+:root:not([data-theme="light"]) .tabla-estab .frag { color: #df6959; }
+
+/* Barra de rango: la pista es el eje, la barra el intervalo p10-p90 y el
+   punto el peso que efectivamente propone la cartera. */
+.celda-rango { position: relative; min-width: 150px; height: 20px; padding: 0 8px !important; }
+.rango-pista {
+  position: absolute; left: 8px; right: 8px; top: 50%; height: 1px;
+  background: var(--linea); transform: translateY(-50%);
+}
+.rango-barra {
+  position: absolute; top: 50%; height: 7px; min-width: 2px;
+  border-radius: 2px; opacity: .45; transform: translateY(-50%);
+}
+.rango-punto {
+  position: absolute; top: 50%; width: 2px; height: 13px;
+  background: var(--tinta); transform: translate(-1px, -50%);
+}

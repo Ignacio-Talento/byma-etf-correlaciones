@@ -137,6 +137,55 @@ los niveles absolutos, menos.
 Los rebalanceos se cachean en `data/backtest_pesos.csv`: la primera construcción
 tarda ~90 segundos y las corridas diarias, menos de un segundo.
 
+### Shrinkage de Ledoit-Wolf: se midió, y aporta poco
+
+La covarianza muestral con 49 activos y 252 observaciones está mal condicionada
+(número de condición **305.017**). El shrinkage de Ledoit-Wolf lo baja a **753**.
+Suena decisivo. No lo es:
+
+| | sin LW | con LW |
+|---|---|---|
+| Máx. Sharpe | 0,82 | 0,83 |
+| Mín. varianza | 0,70 | 0,71 |
+| Rotación de mín. varianza | 115% | 104% |
+
+El aporte al Sharpe es marginal. Donde sí sirve es en la **rotación**, y dado
+cuánto pesa el costo, esa es la parte que termina valiendo algo. La intensidad de
+shrinkage que estima el método es baja (media 3,8%), coherente con que T/N ≈ 5 no
+es un régimen crítico. La implementación en Python puro está verificada contra
+`sklearn.covariance.ledoit_wolf`: coinciden a 4e-17.
+
+### El tope resultó mucho más importante que el shrinkage
+
+Corriendo el mismo walk-forward con distintos topes:
+
+| Máx. Sharpe | tope 15% | 25% | 50% | sin tope |
+|---|---|---|---|---|
+| Sharpe | **0,82** | 0,77 | 0,66 | 0,64 |
+
+Apretar el tope vale ~20 veces más que el shrinkage. Probé la hipótesis de que el
+tope estuviera tapando el beneficio del shrinkage y **no se confirmó**: el
+shrinkage sigue marginal con todos los topes, incluso sin tope. La explicación
+más probable es que la restricción de sólo-largo —presente en todas las
+corridas— ya esté regularizando, que es el mecanismo de Jagannathan y Ma (2003);
+pero este experimento no lo aísla y queda como hipótesis.
+
+### Estabilidad de los pesos: casi ninguno es señal
+
+El panel de cartera remuestrea la ventana por **bloques de 10 ruedas** —para no
+romper el agrupamiento de volatilidad— y reoptimiza 150 veces. Con la ventana de
+sep-2026:
+
+- sólo **3 de 16** posiciones aparecen en 8 de cada 10 remuestreos;
+- la frecuencia media de inclusión es **52%**;
+- XLP e IBB tienen peso 15% y un rango p10–p90 de **0% a 15%**;
+- EWZ pesa **cero** en la cartera propuesta y aparece en el 33% de las muestras,
+  con hasta 14,3%;
+- el único peso robusto es USO (aparece en el 97%).
+
+Es la conclusión más útil de toda la herramienta: los pesos puntuales no son una
+recomendación, son una de muchas soluciones casi equivalentes.
+
 ## Identidad visual
 
 Aplica el sistema de diseño de **Balanz**: paleta navy/cyan, Open Sans (self-hosted

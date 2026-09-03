@@ -243,6 +243,14 @@
             libre de riesgo y su pendiente es el Sharpe de la cartera tangente.</p>
         </figure>
         <div class="comentario" id="comentario"></div>
+
+        <div class="estab-bloque">
+          <h3>¿Cuánto de estos pesos es señal?</h3>
+          <p class="panel-sub">Si el mismo año se hubiera desarrollado apenas distinto, ¿la
+            cartera sería la misma? El bootstrap lo contesta: reordena la ventana por bloques,
+            vuelve a optimizar, y muestra cuánto se mueve cada peso.</p>
+          <div id="estabilidad"></div>
+        </div>
       </div>
     </div>
   </section>
@@ -261,6 +269,7 @@
           <input type="range" id="bt-costo" min="0" max="200" step="5" value="50">
         </div>
         <label class="check"><input type="checkbox" id="bt-escala" checked> Escala logarítmica</label>
+        <label class="check"><input type="checkbox" id="bt-lw"> Mostrar variantes con shrinkage</label>
       </div>
     </div>
 

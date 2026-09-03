@@ -15,11 +15,16 @@ Protocolo, estrictamente point-in-time:
     antes de 2024 y no pueden aparecer en una cartera de 2019.
 
 Estrategias comparadas:
-  maxsharpe  cartera tangente (la que el tablero llama "moderado")
-  minvar     minima varianza (la que el tablero llama "conservador")
-  erc        paridad de riesgo: cada activo aporta el mismo riesgo
-  equi       1/N, el benchmark que hay que ganarle
-  spy        comprar SPY y no hacer nada
+  maxsharpe     cartera tangente (la que el tablero llama "moderado")
+  maxsharpe_lw  la misma, pero con covarianza encogida (Ledoit-Wolf)
+  minvar        minima varianza (la que el tablero llama "conservador")
+  minvar_lw     la misma, con Ledoit-Wolf
+  erc           paridad de riesgo: cada activo aporta el mismo riesgo
+  equi          1/N, el benchmark que hay que ganarle
+  spy           comprar SPY y no hacer nada
+
+Las variantes _lw estan para contestar con datos, y no con opinion, si el
+shrinkage mejora el resultado fuera de muestra.
 
 Los rebalanceos ya calculados se cachean en data/backtest_pesos.csv, asi que
 la corrida diaria solo trabaja cuando aparece un fin de mes nuevo. Sin eso, el
@@ -52,7 +57,9 @@ TOPE = 0.15             # tope por activo, igual que el tablero
 MIN_ACTIVOS = 8         # por debajo de esto no tiene sentido optimizar
 COSTO_POR_LADO = 0.0020 # 20 pb por punta; los CEDEARs no son gratis de operar
 
-ESTRATEGIAS = ["maxsharpe", "minvar", "erc", "equi", "spy"]
+# Las que hay que optimizar (y que por lo tanto rotan y pagan costo).
+ESTRATEGIAS_OPT = ["maxsharpe", "maxsharpe_lw", "minvar", "minvar_lw", "erc", "equi"]
+ESTRATEGIAS = ESTRATEGIAS_OPT + ["spy"]
 
 
 def log(m):
@@ -160,6 +167,66 @@ def ascender(w0, obj, grad, tope, iters=400):
     return w
 
 
+def shrinkage_ledoit_wolf(X):
+    """Covarianza con shrinkage de Ledoit-Wolf (2004), objetivo identidad.
+
+    Con 49 activos y 252 observaciones (N/T ~ 0,2) la covarianza muestral esta
+    mal condicionada: sus autovalores extremos estan sesgados, y el optimizador
+    se apoya justamente en esos extremos —carga los activos que la muestra dice
+    que tienen poca varianza, que suelen ser los que la subestiman por azar—.
+    Ledoit-Wolf la mezcla con un objetivo estructurado (varianza promedio en la
+    diagonal, cero afuera) en la proporcion que minimiza el error cuadratico
+    esperado. Esa proporcion se estima de los datos, no se elige a mano.
+
+    X: lista de T filas, cada una con N retornos, YA centrada.
+    Devuelve (covarianza_shrunk, intensidad). Sigue la formulacion de
+    sklearn.covariance.ledoit_wolf, contra la que esta verificada.
+    """
+    T = len(X)
+    N = len(X[0])
+
+    # emp_cov = X'X / T (sesgada, que es como la define el paper)
+    emp = [[0.0] * N for _ in range(N)]
+    for t in range(T):
+        fila = X[t]
+        for i in range(N):
+            xi = fila[i]
+            if xi == 0.0:
+                continue
+            ei = emp[i]
+            for j in range(i, N):
+                ei[j] += xi * fila[j]
+    for i in range(N):
+        for j in range(i, N):
+            emp[i][j] /= T
+            emp[j][i] = emp[i][j]
+
+    traza = sum(emp[i][i] for i in range(N))
+    mu = traza / N
+
+    # delta = ||emp - mu*I||^2_F / N
+    norma2 = sum(emp[i][j] ** 2 for i in range(N) for j in range(N))
+    delta = (norma2 - 2.0 * mu * traza + N * mu * mu) / N
+
+    # beta = varianza de estimacion de emp, promediada
+    # sum_ij sum_t x_ti^2 x_tj^2  =  sum_t (sum_i x_ti^2)^2
+    suma_cuad = 0.0
+    for t in range(T):
+        s = 0.0
+        for v in X[t]:
+            s += v * v
+        suma_cuad += s * s
+    beta = (suma_cuad / T - norma2) / (N * T)
+
+    beta = min(beta, delta)
+    intensidad = 0.0 if (delta <= 0 or beta <= 0) else beta / delta
+
+    out = [[(1.0 - intensidad) * emp[i][j] for j in range(N)] for i in range(N)]
+    for i in range(N):
+        out[i][i] += intensidad * mu
+    return out, intensidad
+
+
 def estadisticas(rets, idx_desde, idx_hasta):
     """Media y covarianza sobre las filas completas del tramo [desde, hasta]."""
     n = len(rets)
@@ -173,7 +240,8 @@ def estadisticas(rets, idx_desde, idx_hasta):
         for j in range(i, n):
             s = sum((rets[i][t] - mu[i]) * (rets[j][t] - mu[j]) for t in filas)
             cov[i][j] = cov[j][i] = s / (len(filas) - 1)
-    return mu, cov, len(filas)
+    centrada = [[rets[i][t] - mu[i] for i in range(n)] for t in filas]
+    return mu, cov, len(filas), centrada
 
 
 # ---------------------------------------------------------- optimizadores ---
@@ -337,7 +405,7 @@ def main():
     nuevos = 0
 
     for fecha in rebal:
-        if fecha in cache and all(e in cache[fecha] for e in ESTRATEGIAS[:4]):
+        if fecha in cache and all(e in cache[fecha] for e in ESTRATEGIAS_OPT):
             continue
         t = idx[fecha]
         desde = t - LOOKBACK + 1
@@ -349,21 +417,23 @@ def main():
             continue
 
         serie = [rets[tk] for tk in vivos]
-        mu, cov, n_obs = estadisticas(serie, desde, t)
+        mu, cov, n_obs, centrada = estadisticas(serie, desde, t)
         if mu is None:
             continue
+        cov_lw, _inten = shrinkage_ledoit_wolf(centrada)
         rf_d = (rf_por_fecha.get(fecha) or 0.0) / 100 / DIAS_ANIO
 
-        w_ms = opt_maxsharpe(mu, cov, rf_d, TOPE)
-        w_mv = opt_minvar(mu, cov, TOPE)
-        w_erc = opt_erc(cov, TOPE)
-        w_eq = [1.0 / len(vivos)] * len(vivos)
-
+        soluciones = {
+            "maxsharpe":    opt_maxsharpe(mu, cov, rf_d, TOPE),
+            "maxsharpe_lw": opt_maxsharpe(mu, cov_lw, rf_d, TOPE),
+            "minvar":       opt_minvar(mu, cov, TOPE),
+            "minvar_lw":    opt_minvar(mu, cov_lw, TOPE),
+            "erc":          opt_erc(cov_lw, TOPE),
+            "equi":         [1.0 / len(vivos)] * len(vivos),
+        }
         cache[fecha] = {
-            "maxsharpe": {vivos[i]: w_ms[i] for i in range(len(vivos)) if w_ms[i] > 1e-5},
-            "minvar":    {vivos[i]: w_mv[i] for i in range(len(vivos)) if w_mv[i] > 1e-5},
-            "erc":       {vivos[i]: w_erc[i] for i in range(len(vivos)) if w_erc[i] > 1e-5},
-            "equi":      {vivos[i]: w_eq[i] for i in range(len(vivos))},
+            e: {vivos[i]: w[i] for i in range(len(vivos)) if w[i] > 1e-5}
+            for e, w in soluciones.items()
         }
         nuevos += 1
         if nuevos % 10 == 0:
@@ -382,10 +452,10 @@ def main():
     inicio = idx[aplicables[0]]
     fechas_bt = fechas[inicio:]
     navs = {e: [1.0] for e in ESTRATEGIAS}
-    turnover = {e: [] for e in ESTRATEGIAS[:4]}
-    navs_neto = {e: [1.0] for e in ESTRATEGIAS[:4]}
+    turnover = {e: [] for e in ESTRATEGIAS_OPT}
+    navs_neto = {e: [1.0] for e in ESTRATEGIAS_OPT}
 
-    pesos_act = {e: {} for e in ESTRATEGIAS[:4]}
+    pesos_act = {e: {} for e in ESTRATEGIAS_OPT}
     prox = 0
 
     for k in range(1, len(fechas_bt)):
@@ -393,7 +463,7 @@ def main():
 
         # Si ayer fue rebalanceo, hoy ya operamos con los pesos nuevos.
         if prox < len(aplicables) and aplicables[prox] == f_ayer:
-            for e in ESTRATEGIAS[:4]:
+            for e in ESTRATEGIAS_OPT:
                 nuevo = cache[f_ayer][e]
                 universo_union = set(nuevo) | set(pesos_act[e])
                 to = sum(abs(nuevo.get(tk, 0) - pesos_act[e].get(tk, 0))
@@ -403,7 +473,7 @@ def main():
             prox += 1
 
         t_hoy = idx[f_hoy]
-        for e in ESTRATEGIAS[:4]:
+        for e in ESTRATEGIAS_OPT:
             w = pesos_act[e]
             if not w:
                 navs[e].append(navs[e][-1])
@@ -442,7 +512,7 @@ def main():
 
     met = {e: metricas(navs[e], fechas_bt, rf_por_fecha) for e in ESTRATEGIAS}
     met_neto = {e: metricas(navs_neto[e], fechas_bt, rf_por_fecha)
-                for e in ESTRATEGIAS[:4]}
+                for e in ESTRATEGIAS_OPT}
 
     # Publicamos la curva BRUTA y el turnover de cada rebalanceo por separado.
     # Asi el tablero puede recalcular el neto para cualquier costo sin volver a
@@ -469,10 +539,10 @@ def main():
         # y cuanto se movio la cartera esa vez.
         "rebalanceos": {
             "indices": idx_rebal[:len(turnover["equi"])],
-            "turnover": {e: [round(x, 6) for x in turnover[e]] for e in ESTRATEGIAS[:4]},
+            "turnover": {e: [round(x, 6) for x in turnover[e]] for e in ESTRATEGIAS_OPT},
         },
         "turnoverAnual": {e: (sum(turnover[e]) / (len(turnover[e]) / 12))
-                          if turnover[e] else None for e in ESTRATEGIAS[:4]},
+                          if turnover[e] else None for e in ESTRATEGIAS_OPT},
     }
     os.makedirs(os.path.dirname(SALIDA), exist_ok=True)
     with open(SALIDA, "w", encoding="utf-8") as fh:
@@ -481,22 +551,23 @@ def main():
     log("")
     log("=== WALK-FORWARD  %s -> %s  (%d rebalanceos, %.1f anios) ==="
         % (fechas_bt[0], fechas_bt[-1], len(aplicables), met["equi"]["anios"]))
-    log("%-11s %8s %8s %8s %9s %9s %9s" %
+    log("%-14s %8s %8s %8s %9s %9s %9s" %
         ("", "CAGR", "Vol", "Sharpe", "Sortino", "MaxDD", "Turnover"))
-    nombres = {"maxsharpe": "Max Sharpe", "minvar": "Min Var", "erc": "Paridad",
-               "equi": "1/N", "spy": "SPY"}
+    nombres = {"maxsharpe": "Max Sharpe", "maxsharpe_lw": "Max Sharpe LW",
+               "minvar": "Min Var", "minvar_lw": "Min Var LW",
+               "erc": "Paridad", "equi": "1/N", "spy": "SPY"}
     for e in ESTRATEGIAS:
         m = met[e]
         to = salida["turnoverAnual"].get(e)
-        log("%-11s %7.1f%% %7.1f%% %8.2f %9s %8.1f%% %9s" % (
+        log("%-14s %7.1f%% %7.1f%% %8.2f %9s %8.1f%% %9s" % (
             nombres[e], m["cagr"] * 100, m["vol"] * 100, m["sharpe"],
             ("%.2f" % m["sortino"]) if m["sortino"] else "-",
             m["maxDD"] * 100, ("%.0f%%" % (to * 100)) if to else "-"))
     log("")
     log("Neto de costos (%.0f pb por punta):" % (COSTO_POR_LADO * 10000))
-    for e in ESTRATEGIAS[:4]:
+    for e in ESTRATEGIAS_OPT:
         m = met_neto[e]
-        log("  %-11s CAGR %6.1f%%  Sharpe %5.2f" % (nombres[e], m["cagr"] * 100, m["sharpe"]))
+        log("  %-14s CAGR %6.1f%%  Sharpe %5.2f" % (nombres[e], m["cagr"] * 100, m["sharpe"]))
     log("")
     log("Escrito %s (%.0f KB)" % (os.path.relpath(SALIDA, RAIZ),
                                   os.path.getsize(SALIDA) / 1024))

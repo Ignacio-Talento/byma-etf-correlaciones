@@ -116,3 +116,16 @@ def serie_ccl():
         if f and vals:
             filas[f] = sum(vals) / len(vals)
     return sorted(filas.items())
+
+
+# --------------------------------------------------------------------------
+# Tasa libre de riesgo en USD (para el Sharpe)
+# --------------------------------------------------------------------------
+
+def serie_tasa_libre_riesgo(rango="5y"):
+    """T-bill de EE.UU. a 13 semanas (^IRX), en % anual. [(fecha, tasa), ...].
+
+    Es la tasa contra la que se mide el exceso de retorno: la cartera se
+    optimiza en dolares, asi que la libre de riesgo tiene que ser en dolares.
+    """
+    return serie_yahoo("^IRX", rango)

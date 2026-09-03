@@ -18,7 +18,9 @@ retornos diarios. En el tablero se puede:
   bloques de la matriz se lean como grupos y no como ruido;
 - filtrar por categoría, resaltar un ticker, y abrir cualquier par para ver su
   **correlación móvil** — si el número de hoy es estable o es un momento suelto;
-- ver la **tabla completa** de los 1.431 pares y bajarla en CSV.
+- ver la **tabla completa** de los 1.431 pares y bajarla en CSV;
+- y armar una **cartera diversificada por perfil de riesgo** sobre la frontera
+  eficiente de Markowitz.
 
 ## Decisiones que vale la pena conocer
 
@@ -54,6 +56,44 @@ ruedas donde ambos tienen dato (mínimo 20). La matriz se calcula en el navegado
 a partir de la serie de retornos, así que cambiar de ventana o de moneda es
 instantáneo y no hay que precomputar una matriz por combinación.
 
+## La cartera (frontera eficiente)
+
+Markowitz clásico sobre los mismos ETFs: media y covarianza de la ventana,
+**sólo posiciones largas** y **tope por activo** (15% por defecto).
+
+El tope no es cosmético. Sin restricciones, maximizar Sharpe sobre ~50 activos
+con 252 observaciones concentra todo en dos o tres posiciones: óptimo dentro de
+la muestra, inservible fuera. El tope es lo que hace que la cartera resultante
+sea efectivamente diversificada.
+
+Los **tres perfiles son tres puntos de la misma frontera**, no tres modelos:
+
+| Perfil | Qué es | Cómo se elige |
+|---|---|---|
+| Conservador | Mínima varianza | El extremo izquierdo de la frontera |
+| Moderado | Máximo Sharpe (cartera tangente) | Donde la recta desde la tasa libre de riesgo toca la frontera |
+| Audaz | Más retorno, más riesgo | Sobre la frontera, a mitad de camino en volatilidad entre la tangente y el máximo alcanzable |
+
+Se optimiza **en dólares**: el Sharpe necesita una tasa libre de riesgo y la que
+usamos es el T-bill de EE.UU. a 13 semanas (`^IRX`). Una versión en pesos
+requeriría una libre de riesgo en pesos, que es otra discusión.
+
+**Sobre el Sharpe que muestra.** Está inflado por construcción: la cartera se
+elige mirando el mismo período con el que después se la califica. Por eso al lado
+siempre aparece el Sharpe de la cartera equiponderada, que no optimizó nada — esa
+diferencia es lo que ganó el optimizador mirando el pasado, no lo que se puede
+esperar hacia adelante.
+
+La descorrelación no viene de una regla que la imponga: el optimizador minimiza
+`w'Σw`, y la covarianza baja justamente cuando los activos no se mueven juntos.
+El tablero reporta la correlación media ponderada de las posiciones contra la del
+universo entero, para poder verificarlo.
+
+**Verificación.** El optimizador corre en el navegador (gradiente proyectado con
+backtracking sobre el símplex con tope). Sus pesos se compararon contra una
+implementación independiente en Python con `scipy.optimize` (SLSQP): coinciden en
+retorno, volatilidad, Sharpe y en los once pesos, al segundo decimal.
+
 ## Identidad visual
 
 Aplica el sistema de diseño de **Balanz**: paleta navy/cyan, Open Sans (self-hosted
@@ -70,13 +110,15 @@ para que el cero lea "nada".
 ## Cómo está armado
 
 ```
-universo.json                 los 54 ETFs, con nombre y categoría (se edita a mano)
+universo.json                 los 54 ETFs: nombre, categoría y driver (se edita a mano)
 scripts/fuentes.py            acceso a BYMA, Yahoo y el CCL
 scripts/actualizar.py         baja, acumula y publica el dataset
 data/precios.csv              historia acumulada de cierres (el log de git es la auditoría)
 data/ccl.csv                  serie del contado con liquidación
+data/tasa_libre_riesgo.csv    T-bill EE.UU. 13 semanas, para el Sharpe
 data/no_son_etf.json          caché del barrido de altas de BYMA
 docs/                         el sitio (GitHub Pages)
+docs/cartera.js               frontera eficiente y perfiles de riesgo
 docs/marca/                   wordmark Balanz + Open Sans (OFL)
 docs/data/dataset.json        lo que consume el tablero
 .github/workflows/            el job diario
@@ -132,6 +174,7 @@ Agregarlo es una línea en `universo.json` con su nombre y categoría; el resto
 | Qué ETFs cotizan en BYMA | `open.bymadata.com.ar` (con `data912.com` de respaldo) |
 | Precios de los subyacentes | Yahoo Finance |
 | Contado con liquidación | `api.argentinadatos.com` |
+| Tasa libre de riesgo | T-bill EE.UU. 13 semanas (`^IRX`), Yahoo Finance |
 
 ## Aviso
 

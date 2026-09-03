@@ -29,6 +29,7 @@ RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UNIVERSO = os.path.join(RAIZ, "universo.json")
 CSV_PRECIOS = os.path.join(RAIZ, "data", "precios.csv")
 CSV_CCL = os.path.join(RAIZ, "data", "ccl.csv")
+CSV_TASA = os.path.join(RAIZ, "data", "tasa_libre_riesgo.csv")
 CACHE_NO_ETF = os.path.join(RAIZ, "data", "no_son_etf.json")
 SALIDA = os.path.join(RAIZ, "docs", "data", "dataset.json")
 
@@ -70,6 +71,24 @@ def escribir_csv_precios(store):
         w.writerow(["fecha", "ticker", "cierre"])
         for f, tk, p in filas:
             w.writerow([f, tk, "%.6f" % p])
+
+
+def leer_csv_simple(ruta, col):
+    """CSV de dos columnas fecha,<col> -> {fecha: valor}."""
+    store = {}
+    if os.path.exists(ruta):
+        with open(ruta, newline="", encoding="utf-8") as fh:
+            for fila in csv.DictReader(fh):
+                store[fila["fecha"]] = float(fila[col])
+    return store
+
+
+def escribir_csv_simple(ruta, col, store, dec=4):
+    with open(ruta, "w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh)
+        w.writerow(["fecha", col])
+        for f in sorted(store):
+            w.writerow([f, ("%." + str(dec) + "f") % store[f]])
 
 
 def leer_csv_ccl():
@@ -196,6 +215,7 @@ def main():
 
     precios = leer_csv_precios()
     ccl = leer_csv_ccl()
+    tasa = leer_csv_simple(CSV_TASA, "tasa_anual_pct")
     avisos = []
     en_byma = {tk: None for tk in tickers}
 
@@ -239,14 +259,21 @@ def main():
         except Exception as e:
             avisos.append("No se pudo actualizar el CCL: %s" % e)
 
+        # 4. Tasa libre de riesgo en USD, para el Sharpe de la frontera
+        try:
+            tasa.update(dict(fuentes.serie_tasa_libre_riesgo(args.rango)))
+        except Exception as e:
+            avisos.append("No se pudo actualizar la tasa libre de riesgo: %s" % e)
+
         escribir_csv_precios(precios)
         escribir_csv_ccl(ccl)
+        escribir_csv_simple(CSV_TASA, "tasa_anual_pct", tasa, dec=4)
 
     faltantes = [tk for tk in tickers if not precios.get(tk)]
     if faltantes:
         raise SystemExit("Sin precios para: %s" % ", ".join(faltantes))
 
-    # 4. Eje de fechas = ruedas donde cotizo al menos la mitad del universo.
+    # 5. Eje de fechas = ruedas donde cotizo al menos la mitad del universo.
     # Filtra dias sueltos o medias ruedas que aparecen en una sola serie.
     cuenta = {}
     for tk in tickers:
@@ -258,6 +285,7 @@ def main():
     log("Eje: %d ruedas, %s -> %s" % (len(fechas), fechas[0], fechas[-1]))
 
     niveles_ccl, ret_ccl = rellenar_ccl(fechas, ccl)
+    niveles_tasa, _ = rellenar_ccl(fechas, tasa)   # mismo arrastre del ultimo dato
     if niveles_ccl[-1] is None:
         avisos.append("Sin CCL para el ultimo cierre: la vista en pesos "
                       "puede quedar desactualizada.")
@@ -270,6 +298,7 @@ def main():
             "nombre": meta["nombre"],
             "categoria": meta["categoria"],
             "apalancamiento": meta.get("apalancamiento", 1),
+            "driver": meta.get("driver", ""),
             "enByma": en_byma[tk],
             "ret": [None if r is None else round(r, 6) for r in rets],
         }
@@ -283,11 +312,16 @@ def main():
             "nivel": [None if v is None else round(v, 2) for v in niveles_ccl],
             "ret": [None if r is None else round(r, 6) for r in ret_ccl],
         },
+        "tasaLibreRiesgo": {
+            "pct": [None if v is None else round(v, 4) for v in niveles_tasa],
+            "descripcion": "T-bill EE.UU. 13 semanas (^IRX), % anual",
+        },
         "avisos": avisos,
         "fuentes": {
             "universo": "Panel de CEDEARs de BYMA (open.bymadata.com.ar)",
             "precios": "Cierres ajustados del ETF subyacente en EE.UU. (Yahoo Finance)",
             "ccl": "Contado con liquidacion (api.argentinadatos.com)",
+            "tasa": "T-bill EE.UU. 13 semanas, ^IRX (Yahoo Finance)",
         },
     }
 

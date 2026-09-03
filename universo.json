@@ -1,59 +1,280 @@
 {
-  "_comentario": "ETFs que cotizan en BYMA como CEDEAR. El universo se valida a diario contra el panel de BYMA (scripts/universo_byma.py). 'nombre' y 'categoria' se mantienen a mano: si BYMA lista un ETF nuevo, el job lo detecta y avisa para agregarlo aca.",
+  "_comentario": "ETFs que cotizan en BYMA como CEDEAR. El universo se valida a diario contra el panel de BYMA (scripts/universo_byma.py). 'nombre' y 'categoria' se mantienen a mano: si BYMA lista un ETF nuevo, el job lo detecta y avisa para agregarlo aca. El campo 'driver' explica a que reacciona cada ETF; alimenta los comentarios de la cartera.",
   "etfs": {
-    "SPY":  {"nombre": "SPDR S&P 500",                      "categoria": "Indice amplio EE.UU."},
-    "IVV":  {"nombre": "iShares Core S&P 500",              "categoria": "Indice amplio EE.UU."},
-    "QQQ":  {"nombre": "Invesco Nasdaq 100",                "categoria": "Indice amplio EE.UU."},
-    "DIA":  {"nombre": "SPDR Dow Jones 30",                 "categoria": "Indice amplio EE.UU."},
-    "IWM":  {"nombre": "iShares Russell 2000",              "categoria": "Indice amplio EE.UU."},
-    "IJH":  {"nombre": "iShares Core S&P Mid-Cap",          "categoria": "Indice amplio EE.UU."},
-    "RSP":  {"nombre": "Invesco S&P 500 Equal Weight",      "categoria": "Indice amplio EE.UU."},
-    "ESGU": {"nombre": "iShares ESG Aware MSCI USA",        "categoria": "Indice amplio EE.UU."},
-    "SPHQ": {"nombre": "Invesco S&P 500 Quality",           "categoria": "Factor / Estilo"},
-    "IVE":  {"nombre": "iShares S&P 500 Value",             "categoria": "Factor / Estilo"},
-    "IVW":  {"nombre": "iShares S&P 500 Growth",            "categoria": "Factor / Estilo"},
-    "VIG":  {"nombre": "Vanguard Dividend Appreciation",    "categoria": "Factor / Estilo"},
-    "XLB":  {"nombre": "SPDR Materiales",                   "categoria": "Sectorial EE.UU."},
-    "XLC":  {"nombre": "SPDR Comunicaciones",               "categoria": "Sectorial EE.UU."},
-    "XLE":  {"nombre": "SPDR Energia",                      "categoria": "Sectorial EE.UU."},
-    "XLF":  {"nombre": "SPDR Financiero",                   "categoria": "Sectorial EE.UU."},
-    "XLI":  {"nombre": "SPDR Industrial",                   "categoria": "Sectorial EE.UU."},
-    "XLK":  {"nombre": "SPDR Tecnologia",                   "categoria": "Sectorial EE.UU."},
-    "XLP":  {"nombre": "SPDR Consumo defensivo",            "categoria": "Sectorial EE.UU."},
-    "XLRE": {"nombre": "SPDR Real Estate",                  "categoria": "Sectorial EE.UU."},
-    "XLU":  {"nombre": "SPDR Utilities",                    "categoria": "Sectorial EE.UU."},
-    "XLV":  {"nombre": "SPDR Salud",                        "categoria": "Sectorial EE.UU."},
-    "XLY":  {"nombre": "SPDR Consumo discrecional",         "categoria": "Sectorial EE.UU."},
-    "XME":  {"nombre": "SPDR Metales y Mineria",            "categoria": "Sectorial EE.UU."},
-    "SMH":  {"nombre": "VanEck Semiconductores",            "categoria": "Tematico"},
-    "IBB":  {"nombre": "iShares Biotecnologia",             "categoria": "Tematico"},
-    "ITA":  {"nombre": "iShares Aeroespacial y Defensa",    "categoria": "Tematico"},
-    "CIBR": {"nombre": "First Trust Ciberseguridad",        "categoria": "Tematico"},
-    "ARKK": {"nombre": "ARK Innovation",                    "categoria": "Tematico"},
-    "ICLN": {"nombre": "iShares Energia Limpia Global",     "categoria": "Tematico"},
-    "ACWI": {"nombre": "iShares MSCI ACWI (mundo)",         "categoria": "Internacional"},
-    "EFA":  {"nombre": "iShares MSCI EAFE (desarrollados)", "categoria": "Internacional"},
-    "VEA":  {"nombre": "Vanguard FTSE Desarrollados",       "categoria": "Internacional"},
-    "IEUR": {"nombre": "iShares Core MSCI Europa",          "categoria": "Internacional"},
-    "EEM":  {"nombre": "iShares MSCI Emergentes",           "categoria": "Internacional"},
-    "IEMG": {"nombre": "iShares Core MSCI Emergentes",      "categoria": "Internacional"},
-    "EWJ":  {"nombre": "iShares MSCI Japon",                "categoria": "Internacional"},
-    "EWY":  {"nombre": "iShares MSCI Corea del Sur",        "categoria": "Internacional"},
-    "EWZ":  {"nombre": "iShares MSCI Brasil",               "categoria": "Internacional"},
-    "FXI":  {"nombre": "iShares China Large-Cap",           "categoria": "Internacional"},
-    "ILF":  {"nombre": "iShares Latinoamerica 40",          "categoria": "Internacional"},
-    "GLD":  {"nombre": "SPDR Oro fisico",                   "categoria": "Commodities y metales"},
-    "SLV":  {"nombre": "iShares Plata fisica",              "categoria": "Commodities y metales"},
-    "GDX":  {"nombre": "VanEck Mineras de oro",             "categoria": "Commodities y metales"},
-    "COPX": {"nombre": "Global X Mineras de cobre",         "categoria": "Commodities y metales"},
-    "URA":  {"nombre": "Global X Uranio",                   "categoria": "Commodities y metales"},
-    "USO":  {"nombre": "United States Oil Fund",            "categoria": "Commodities y metales"},
-    "IBIT": {"nombre": "iShares Bitcoin Trust",             "categoria": "Cripto"},
-    "ETHA": {"nombre": "iShares Ethereum Trust",            "categoria": "Cripto"},
-    "TQQQ": {"nombre": "ProShares UltraPro Nasdaq 3x",      "categoria": "Apalancado / Inverso", "apalancamiento": 3},
-    "SPXL": {"nombre": "Direxion S&P 500 Bull 3x",          "categoria": "Apalancado / Inverso", "apalancamiento": 3},
-    "SH":   {"nombre": "ProShares Short S&P 500",           "categoria": "Apalancado / Inverso", "apalancamiento": -1},
-    "PSQ":  {"nombre": "ProShares Short Nasdaq 100",        "categoria": "Apalancado / Inverso", "apalancamiento": -1},
-    "VXX":  {"nombre": "iPath Futuros VIX corto plazo",     "categoria": "Apalancado / Inverso", "apalancamiento": 0}
+    "SPY": {
+      "nombre": "SPDR S&P 500",
+      "categoria": "Indice amplio EE.UU.",
+      "driver": "Beta pura del mercado americano. Sube con crecimiento y expectativas de recorte de tasas; cae con shocks de riesgo. Es el activo contra el que se mide todo lo demas."
+    },
+    "IVV": {
+      "nombre": "iShares Core S&P 500",
+      "categoria": "Indice amplio EE.UU.",
+      "driver": "Mismo indice que SPY, otro emisor. Su utilidad no es diversificar sino elegir emisor o costo: sostenerlos juntos duplica la misma exposicion."
+    },
+    "QQQ": {
+      "nombre": "Invesco Nasdaq 100",
+      "categoria": "Indice amplio EE.UU.",
+      "driver": "Nasdaq 100. Mas duracion que el S&P: al concentrar flujos de caja lejanos, sufre mas cuando suben las tasas largas y rebota mas fuerte cuando bajan."
+    },
+    "DIA": {
+      "nombre": "SPDR Dow Jones 30",
+      "categoria": "Indice amplio EE.UU.",
+      "driver": "Dow 30. Sesgo a industriales y valor consolidado; menos tecnologia que el S&P, con lo cual reacciona menos al ciclo de las tasas."
+    },
+    "IWM": {
+      "nombre": "iShares Russell 2000",
+      "categoria": "Indice amplio EE.UU.",
+      "driver": "Small caps. Muy sensible al ciclo domestico y al costo del credito: gran parte del indice tiene deuda a tasa flotante y balances mas fragiles."
+    },
+    "IJH": {
+      "nombre": "iShares Core S&P Mid-Cap",
+      "categoria": "Indice amplio EE.UU.",
+      "driver": "Mid caps. A mitad de camino entre el IWM y el S&P; comparte la sensibilidad al ciclo interno pero con empresas mas solidas."
+    },
+    "RSP": {
+      "nombre": "Invesco S&P 500 Equal Weight",
+      "categoria": "Indice amplio EE.UU.",
+      "driver": "S&P equiponderado. Cuando el indice sube por unas pocas megacaps, este queda atras; cuando la suba se ensancha, lo supera. Mide amplitud de mercado."
+    },
+    "ESGU": {
+      "nombre": "iShares ESG Aware MSCI USA",
+      "categoria": "Indice amplio EE.UU.",
+      "driver": "S&P filtrado por criterios ESG. En la practica replica al indice: su correlacion con SPY es casi 1 y no aporta diversificacion."
+    },
+    "SPHQ": {
+      "nombre": "Invesco S&P 500 Quality",
+      "categoria": "Factor / Estilo",
+      "driver": "Factor calidad: balances solidos y ganancias estables. Tiende a defenderse mejor en caidas y a quedar atras en rallies especulativos."
+    },
+    "IVE": {
+      "nombre": "iShares S&P 500 Value",
+      "categoria": "Factor / Estilo",
+      "driver": "Value del S&P. Le va relativamente mejor con tasas altas y en rotaciones desde crecimiento; es el otro lado del IVW."
+    },
+    "IVW": {
+      "nombre": "iShares S&P 500 Growth",
+      "categoria": "Factor / Estilo",
+      "driver": "Growth del S&P. Contracara del IVE: duracion larga, se beneficia de tasas a la baja y sufre cuando suben."
+    },
+    "VIG": {
+      "nombre": "Vanguard Dividend Appreciation",
+      "categoria": "Factor / Estilo",
+      "driver": "Dividendos crecientes. Sesgo a empresas maduras con caja; comportamiento defensivo, con menos beta que el indice."
+    },
+    "XLB": {
+      "nombre": "SPDR Materiales",
+      "categoria": "Sectorial EE.UU.",
+      "driver": "Materiales. Depende de commodities industriales y, por esa via, del ciclo de China y de la construccion global."
+    },
+    "XLC": {
+      "nombre": "SPDR Comunicaciones",
+      "categoria": "Sectorial EE.UU.",
+      "driver": "Comunicaciones. Muy concentrado: la publicidad digital manda, asi que sigue el ciclo del gasto publicitario mas que el de las telecos."
+    },
+    "XLE": {
+      "nombre": "SPDR Energia",
+      "categoria": "Sectorial EE.UU.",
+      "driver": "Energia. Su driver es el precio del crudo, no el ciclo de acciones. Por eso suele descorrelacionar del S&P justo cuando hay shock de oferta o tension geopolitica."
+    },
+    "XLF": {
+      "nombre": "SPDR Financiero",
+      "categoria": "Sectorial EE.UU.",
+      "driver": "Financiero. Le importa la pendiente de la curva (presta largo, se fondea corto) y la calidad del credito. Sube con curva empinada, sufre con estres crediticio."
+    },
+    "XLI": {
+      "nombre": "SPDR Industrial",
+      "categoria": "Sectorial EE.UU.",
+      "driver": "Industriales. Sigue el ciclo de inversion real: PMI, transporte y bienes de capital. Es de los sectores mas atados al PBI global."
+    },
+    "XLK": {
+      "nombre": "SPDR Tecnologia",
+      "categoria": "Sectorial EE.UU.",
+      "driver": "Tecnologia. Ciclo de inversion en software y semis, hoy dominado por el capex de IA. Sensible a tasas largas por duracion."
+    },
+    "XLP": {
+      "nombre": "SPDR Consumo defensivo",
+      "categoria": "Sectorial EE.UU.",
+      "driver": "Consumo defensivo. Demanda inelastica: se compra comida y limpieza en cualquier ciclo. Es de los pocos sectores que aguanta en recesion, y queda atras en euforia."
+    },
+    "XLRE": {
+      "nombre": "SPDR Real Estate",
+      "categoria": "Sectorial EE.UU.",
+      "driver": "Real estate. Es practicamente un bono disfrazado de accion: lo mueven las tasas largas y las tasas de capitalizacion, mas que las ganancias."
+    },
+    "XLU": {
+      "nombre": "SPDR Utilities",
+      "categoria": "Sectorial EE.UU.",
+      "driver": "Utilities. El otro bond proxy: flujos regulados y predecibles que se descuentan a tasa larga. Historicamente defensivo, aunque el capex de data centers le agrego un driver de demanda electrica."
+    },
+    "XLV": {
+      "nombre": "SPDR Salud",
+      "categoria": "Sectorial EE.UU.",
+      "driver": "Salud. Defensivo por demanda estable, pero con un riesgo propio que el resto del mercado no tiene: regulacion de precios y vencimiento de patentes."
+    },
+    "XLY": {
+      "nombre": "SPDR Consumo discrecional",
+      "categoria": "Sectorial EE.UU.",
+      "driver": "Consumo discrecional. Depende del ingreso real disponible y del empleo; es la parte del consumo que se recorta primero."
+    },
+    "XME": {
+      "nombre": "SPDR Metales y Mineria",
+      "categoria": "Sectorial EE.UU.",
+      "driver": "Metales y mineria. Cobre, acero y carbon: ciclo industrial global y demanda china."
+    },
+    "SMH": {
+      "nombre": "VanEck Semiconductores",
+      "categoria": "Tematico",
+      "driver": "Semiconductores. El sector mas ciclico del equity: ciclo de inventarios, capex de IA y riesgo de concentracion geografica en Taiwan."
+    },
+    "IBB": {
+      "nombre": "iShares Biotecnologia",
+      "categoria": "Tematico",
+      "driver": "Biotecnologia. Driver idiosincratico —resultados clinicos, aprobaciones y M&A— que poco tiene que ver con el PBI. Ademas es sensible a tasas porque sus flujos son lejanos."
+    },
+    "ITA": {
+      "nombre": "iShares Aeroespacial y Defensa",
+      "categoria": "Tematico",
+      "driver": "Aeroespacial y defensa. Se mueve con los presupuestos militares y la tension geopolitica, un driver que suele activarse cuando el resto del mercado cae."
+    },
+    "CIBR": {
+      "nombre": "First Trust Ciberseguridad",
+      "categoria": "Tematico",
+      "driver": "Ciberseguridad. Gasto en TI, que es de los ultimos renglones que una empresa recorta; algo mas defensivo que el software general."
+    },
+    "ARKK": {
+      "nombre": "ARK Innovation",
+      "categoria": "Tematico",
+      "driver": "Innovacion de alta duracion. Es una apuesta apalancada al apetito de riesgo: amplifica al Nasdaq en las dos direcciones."
+    },
+    "ICLN": {
+      "nombre": "iShares Energia Limpia Global",
+      "categoria": "Tematico",
+      "driver": "Energia limpia global. Muy dependiente de subsidios y del costo de financiamiento: proyectos intensivos en capital que sufren con tasas altas."
+    },
+    "ACWI": {
+      "nombre": "iShares MSCI ACWI (mundo)",
+      "categoria": "Internacional",
+      "driver": "Acciones del mundo. Domina EE.UU. por peso, asi que diversifica menos de lo que su nombre sugiere."
+    },
+    "EFA": {
+      "nombre": "iShares MSCI EAFE (desarrollados)",
+      "categoria": "Internacional",
+      "driver": "Desarrollados ex-EE.UU.: Europa y Japon. Un dolar debil le suma retorno medido en dolares."
+    },
+    "VEA": {
+      "nombre": "Vanguard FTSE Desarrollados",
+      "categoria": "Internacional",
+      "driver": "Desarrollados ex-EE.UU., casi el mismo indice que EFA con otro emisor y menor costo."
+    },
+    "IEUR": {
+      "nombre": "iShares Core MSCI Europa",
+      "categoria": "Internacional",
+      "driver": "Europa. Ciclo industrial europeo, energia y politica del BCE. Sensible al euro."
+    },
+    "EEM": {
+      "nombre": "iShares MSCI Emergentes",
+      "categoria": "Internacional",
+      "driver": "Emergentes. Le pesan el dolar (un dolar fuerte le juega en contra), las tasas de EE.UU. y China."
+    },
+    "IEMG": {
+      "nombre": "iShares Core MSCI Emergentes",
+      "categoria": "Internacional",
+      "driver": "Emergentes core, practicamente el mismo indice que EEM con otro emisor."
+    },
+    "EWJ": {
+      "nombre": "iShares MSCI Japon",
+      "categoria": "Internacional",
+      "driver": "Japon. Politica del Banco de Japon y el yen: un yen debil ayuda a las exportadoras pero resta al medir en dolares."
+    },
+    "EWY": {
+      "nombre": "iShares MSCI Corea del Sur",
+      "categoria": "Internacional",
+      "driver": "Corea. Es casi una apuesta al ciclo de memorias y semiconductores, con riesgo geopolitico regional propio."
+    },
+    "EWZ": {
+      "nombre": "iShares MSCI Brasil",
+      "categoria": "Internacional",
+      "driver": "Brasil. Commodities, tasa Selic y politica domestica. Su ciclo propio lo desacopla seguido del S&P."
+    },
+    "FXI": {
+      "nombre": "iShares China Large-Cap",
+      "categoria": "Internacional",
+      "driver": "China large-cap. Estimulo del gobierno y riesgo regulatorio. Su driver es tan local que suele moverse por su cuenta."
+    },
+    "ILF": {
+      "nombre": "iShares Latinoamerica 40",
+      "categoria": "Internacional",
+      "driver": "Latinoamerica 40. Dominado por Brasil y Mexico: commodities y politica regional."
+    },
+    "GLD": {
+      "nombre": "SPDR Oro fisico",
+      "categoria": "Commodities y metales",
+      "driver": "Oro fisico. Sus drivers son las tasas reales (una baja lo favorece), el dolar y el estres geopolitico. Es el descorrelacionador clasico: no tiene flujo de caja, con lo cual no depende de ganancias."
+    },
+    "SLV": {
+      "nombre": "iShares Plata fisica",
+      "categoria": "Commodities y metales",
+      "driver": "Plata. Mitad refugio como el oro, mitad demanda industrial (electronica y solar). Mas volatil que el oro."
+    },
+    "GDX": {
+      "nombre": "VanEck Mineras de oro",
+      "categoria": "Commodities y metales",
+      "driver": "Mineras de oro. Oro apalancado: como el margen es la diferencia entre precio y costo, amplifica los movimientos del metal, con riesgo operativo agregado."
+    },
+    "COPX": {
+      "nombre": "Global X Mineras de cobre",
+      "categoria": "Commodities y metales",
+      "driver": "Mineras de cobre. Electrificacion y demanda china; el cobre es el termometro clasico del ciclo industrial."
+    },
+    "URA": {
+      "nombre": "Global X Uranio",
+      "categoria": "Commodities y metales",
+      "driver": "Uranio. Nuclear: politica energetica de largo plazo y demanda electrica. Mercado chico, oferta rigida, movimientos bruscos."
+    },
+    "USO": {
+      "nombre": "United States Oil Fund",
+      "categoria": "Commodities y metales",
+      "driver": "Petroleo via futuros. Su driver es OPEP y la geopolitica, no las ganancias corporativas, y por eso suele ser el activo mas descorrelacionado del panel. Ojo: replica futuros, asi que el contango le erosiona retorno en el largo plazo."
+    },
+    "IBIT": {
+      "nombre": "iShares Bitcoin Trust",
+      "categoria": "Cripto",
+      "driver": "Bitcoin al contado. Liquidez global y apetito de riesgo. Se comporta como un activo de riesgo amplificado, no como refugio."
+    },
+    "ETHA": {
+      "nombre": "iShares Ethereum Trust",
+      "categoria": "Cripto",
+      "driver": "Ethereum al contado. Mismos drivers que bitcoin y muy correlacionado con el, con beta algo mayor."
+    },
+    "TQQQ": {
+      "nombre": "ProShares UltraPro Nasdaq 3x",
+      "categoria": "Apalancado / Inverso",
+      "apalancamiento": 3,
+      "driver": "Nasdaq 3x diario. Reapalanca todos los dias: en mercados laterales y volatiles pierde valor aunque el indice termine igual. No es 'el Nasdaq por tres' en el largo plazo."
+    },
+    "SPXL": {
+      "nombre": "Direxion S&P 500 Bull 3x",
+      "categoria": "Apalancado / Inverso",
+      "apalancamiento": 3,
+      "driver": "S&P 500 3x diario. Mismo decaimiento por volatilidad que el TQQQ."
+    },
+    "SH": {
+      "nombre": "ProShares Short S&P 500",
+      "categoria": "Apalancado / Inverso",
+      "apalancamiento": -1,
+      "driver": "Inverso del S&P. Da -1 contra el indice por construccion, no porque diversifique. En un mercado que sube en el largo plazo, pierde de forma estructural."
+    },
+    "PSQ": {
+      "nombre": "ProShares Short Nasdaq 100",
+      "categoria": "Apalancado / Inverso",
+      "apalancamiento": -1,
+      "driver": "Inverso del Nasdaq. Misma logica que el SH."
+    },
+    "VXX": {
+      "nombre": "iPath Futuros VIX corto plazo",
+      "categoria": "Apalancado / Inverso",
+      "apalancamiento": 0,
+      "driver": "Futuros de VIX de corto plazo. Se dispara cuando las acciones caen fuerte, pero el contango de la curva de volatilidad le erosiona valor de forma permanente: sirve de cobertura tactica, no de posicion."
+    }
   }
 }

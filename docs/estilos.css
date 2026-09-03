@@ -56,6 +56,9 @@
   --medio:     #F2F4F8;   /* neutro: el cero debe leer "nada" */
 
   --acento:    var(--cyan);
+  /* Trazo de series sobre la superficie del panel. En claro es el navy de
+     marca; en oscuro el navy desaparece contra el fondo, asi que sube a cyan. */
+  --trazo:     var(--navy);
   --sombra:    0 1px 2px rgba(0, 32, 96, .05), 0 8px 24px rgba(0, 32, 96, .07);
 
   --r:  8px;
@@ -76,6 +79,7 @@
     --polo-neg:  #5c90ed;
     --polo-pos:  #df6959;
     --medio:     #323438;
+    --trazo:     var(--cyan);
     --sombra:    0 1px 2px rgba(0, 0, 0, .35), 0 8px 24px rgba(0, 0, 0, .40);
   }
 }
@@ -93,6 +97,7 @@
   --polo-neg:  #5c90ed;
   --polo-pos:  #df6959;
   --medio:     #323438;
+  --trazo:     var(--cyan);
   --sombra:    0 1px 2px rgba(0, 0, 0, .35), 0 8px 24px rgba(0, 0, 0, .40);
 }
 
@@ -411,3 +416,120 @@ h3 { font-size: 12px; color: var(--tinta-2); text-transform: uppercase; letter-s
 .estado-val, .leyenda-ticks, .movil-eje, .pastilla, .sub strong {
   font-variant-numeric: tabular-nums;
 }
+
+/* ==================================================== cartera / frontera === */
+
+.eyebrow.oscuro { color: var(--blue-steel); }
+:root[data-theme="dark"] .eyebrow.oscuro,
+:root:not([data-theme="light"]) .eyebrow.oscuro { color: var(--cyan); }
+
+.cartera-controles {
+  display: flex; flex-wrap: wrap; gap: 14px 24px;
+  align-items: flex-end; justify-content: space-between;
+  padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid var(--linea);
+}
+.cartera-filtros { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: flex-end; }
+.filtro-check { justify-content: flex-end; }
+/* Gana a `.filtro > label`, que pone mayusculas y letter-spacing. */
+.filtro > label.check, .check {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 12.5px; color: var(--tinta-2); cursor: pointer;
+  text-transform: none; letter-spacing: 0; font-weight: 400; min-height: 32px;
+}
+.check input { accent-color: var(--cyan); width: 15px; height: 15px; }
+
+/* Perfil de riesgo: usa los colores semanticos de la marca, que existen
+   exactamente para esto (conservador / moderado / agresivo). */
+.perfil-barra { display: inline-flex; border: 1px solid var(--borde); border-radius: 8px; overflow: hidden; }
+.perfil-btn {
+  font: inherit; cursor: pointer; border: 0; background: var(--plano);
+  padding: 8px 18px; display: flex; flex-direction: column; gap: 1px;
+  align-items: flex-start; text-align: left; min-width: 128px;
+  border-left: 3px solid transparent;
+}
+.perfil-btn + .perfil-btn { border-left: 1px solid var(--borde); }
+.perfil-btn .pf-punto {
+  width: 9px; height: 9px; border-radius: 50%; background: var(--c);
+  opacity: .35; margin-bottom: 2px;
+}
+.perfil-btn .pf-nombre { font-size: 13.5px; font-weight: 600; color: var(--tinta-apagada); }
+.perfil-btn .pf-sub { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--tinta-apagada); opacity: .8; }
+.perfil-btn.activo { background: var(--superficie); border-left-color: var(--c); }
+.perfil-btn.activo .pf-punto { opacity: 1; }
+.perfil-btn.activo .pf-nombre { color: var(--tinta); }
+.perfil-btn:hover .pf-nombre { color: var(--tinta); }
+
+.cartera-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+@media (max-width: 980px) { .cartera-grid { grid-template-columns: minmax(0, 1fr); } }
+
+.metricas { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 10px; margin: 0 0 16px; }
+.metricas div { display: flex; flex-direction: column; gap: 2px; }
+.metricas dt {
+  font-size: 9.5px; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--label-gray); font-weight: 600;
+}
+:root[data-theme="dark"] .metricas dt,
+:root:not([data-theme="light"]) .metricas dt { color: var(--steel-gray); }
+.metricas dd { margin: 0; font-size: 21px; font-weight: 700; letter-spacing: -0.01em; }
+
+.mezcla-fig { margin: 0 0 16px; }
+.mezcla-fig figcaption, .frontera-fig figcaption {
+  font-size: 9.5px; text-transform: uppercase; letter-spacing: .1em;
+  color: var(--label-gray); font-weight: 600; margin-bottom: 6px;
+}
+:root[data-theme="dark"] .mezcla-fig figcaption,
+:root:not([data-theme="light"]) .mezcla-fig figcaption,
+:root[data-theme="dark"] .frontera-fig figcaption,
+:root:not([data-theme="light"]) .frontera-fig figcaption { color: var(--steel-gray); }
+
+/* 2px de superficie entre segmentos: separa sin dibujar bordes */
+.mezcla { display: flex; height: 24px; border-radius: 3px; overflow: hidden; gap: 2px; background: var(--linea); }
+.mezcla .seg { display: block; height: 100%; }
+.mezcla-leyenda { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 7px; font-size: 11.5px; color: var(--tinta-2); }
+.mz-item { display: inline-flex; align-items: center; gap: 5px; }
+.mz-punto { width: 8px; height: 8px; border-radius: 2px; }
+
+.tabla-pesos-scroll { max-height: 300px; margin-bottom: 14px; }
+#tabla-pesos { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+#tabla-pesos th {
+  position: sticky; top: 0; z-index: 1; text-align: left;
+  background: var(--navy); color: #FFFFFF; padding: 7px 9px;
+  font-size: 9.5px; text-transform: uppercase; letter-spacing: .08em; font-weight: 600;
+}
+#tabla-pesos th.num, #tabla-pesos td.num { text-align: right; font-variant-numeric: tabular-nums; }
+#tabla-pesos td { padding: 5px 9px; border-bottom: 1px solid var(--linea); }
+#tabla-pesos .cat-cel { color: var(--tinta-apagada); font-size: 11.5px; }
+.barra-cel { width: 88px; }
+.barra { display: block; height: 7px; border-radius: 2px; }
+
+.advertencia {
+  margin: 0; padding: 10px 12px; border-radius: var(--r);
+  background: var(--light-blue); border-left: 3px solid var(--cyan);
+  font-size: 12px; line-height: 1.5; color: var(--navy);
+}
+:root[data-theme="dark"] .advertencia,
+:root:not([data-theme="light"]) .advertencia { background: rgba(0, 176, 240, .08); color: var(--tinta-2); }
+
+.frontera-fig { margin: 0 0 16px; }
+#g-frontera { display: block; width: 100%; }
+#g-frontera .eje-lbl { font-size: 10px; fill: var(--tinta-apagada); font-family: var(--sans); }
+#g-frontera .eje-tit {
+  font-size: 9.5px; fill: var(--tinta-apagada); font-family: var(--sans);
+  text-transform: uppercase; letter-spacing: .08em;
+}
+#g-frontera .pt-lbl { font-size: 11px; fill: var(--tinta-2); font-family: var(--sans); }
+#g-frontera .pt-lbl.destacado { fill: var(--tinta); font-weight: 700; }
+
+.comentario { font-size: 12.5px; line-height: 1.6; color: var(--tinta-2); }
+.comentario p { margin: 0 0 10px; }
+.comentario strong { color: var(--tinta); }
+.comentario .nota { margin-top: -4px; }
+ul.drivers { list-style: none; margin: 0 0 10px; padding: 0; }
+ul.drivers li {
+  display: grid; grid-template-columns: 46px 46px 1fr; gap: 8px;
+  padding: 6px 0; border-bottom: 1px solid var(--linea); align-items: baseline;
+}
+ul.drivers li:last-child { border-bottom: 0; }
+.dv-tk { font-weight: 700; color: var(--tinta); }
+.dv-w { font-variant-numeric: tabular-nums; color: var(--tinta-apagada); text-align: right; }
+.dv-txt { font-size: 12px; }

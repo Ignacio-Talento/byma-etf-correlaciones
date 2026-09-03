@@ -167,6 +167,86 @@
     </aside>
   </div>
 
+  <!-- ================= Cartera por perfil de riesgo ================= -->
+  <section class="panel panel-cartera" id="panel-cartera">
+    <div class="panel-cab">
+      <div>
+        <span class="eyebrow oscuro">Frontera eficiente de Markowitz</span>
+        <h2>Cartera diversificada por perfil de riesgo</h2>
+        <p class="panel-sub">Tres puntos de la misma frontera, optimizados en dólares sobre
+          <span id="ruedas-usadas">&mdash;</span> ruedas. Sólo largo, con tope por activo.
+          Tasa libre de riesgo usada: <span id="rf-usada">&mdash;</span> anual.</p>
+      </div>
+      <button type="button" id="descargar-cartera" class="btn">Descargar los 3 perfiles</button>
+    </div>
+
+    <div class="cartera-controles">
+      <div id="perfil-barra" class="perfil-barra" role="group" aria-label="Perfil de riesgo"></div>
+      <div class="cartera-filtros">
+        <div class="filtro">
+          <label for="c-lookback">Lookback</label>
+          <select id="c-lookback">
+            <option value="126">6 meses</option>
+            <option value="252" selected>1 año</option>
+            <option value="504">2 años</option>
+          </select>
+        </div>
+        <div class="filtro">
+          <label for="c-tope">Tope por activo</label>
+          <select id="c-tope">
+            <option value="0.10">10%</option>
+            <option value="0.15" selected>15%</option>
+            <option value="0.25">25%</option>
+            <option value="1">Sin tope</option>
+          </select>
+        </div>
+        <div class="filtro filtro-check">
+          <label class="check"><input type="checkbox" id="c-apal" checked> Excluir apalancados e inversos</label>
+        </div>
+      </div>
+    </div>
+
+    <p id="cartera-error" class="nota" hidden>No hay suficientes ruedas completas para optimizar con esta configuración.</p>
+
+    <div class="cartera-grid">
+      <div class="cartera-izq">
+        <dl class="metricas">
+          <div><dt>Retorno esperado</dt><dd id="m-ret">&mdash;</dd></div>
+          <div><dt>Volatilidad</dt><dd id="m-vol">&mdash;</dd></div>
+          <div><dt>Sharpe</dt><dd id="m-sharpe">&mdash;</dd></div>
+          <div><dt>Correlación media</dt><dd id="m-corr">&mdash;</dd></div>
+          <div><dt>Posiciones efectivas</dt><dd id="m-npos">&mdash;</dd></div>
+        </dl>
+
+        <figure class="mezcla-fig">
+          <figcaption>Composición por categoría</figcaption>
+          <div class="mezcla" id="mezcla"></div>
+          <div class="mezcla-leyenda" id="mezcla-leyenda"></div>
+        </figure>
+
+        <div class="tabla-scroll tabla-pesos-scroll">
+          <table id="tabla-pesos">
+            <thead><tr><th>ETF</th><th>Categoría</th><th class="num">Peso</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <p class="advertencia" id="advertencia"></p>
+      </div>
+
+      <div class="cartera-der">
+        <figure class="frontera-fig">
+          <figcaption>La frontera eficiente y los tres perfiles</figcaption>
+          <svg id="g-frontera" role="img" aria-label="Frontera eficiente: retorno esperado contra volatilidad"></svg>
+          <p class="leyenda-pie">Cada punto gris es un ETF suelto. La curva navy es la frontera:
+            la mejor combinación posible para cada nivel de riesgo. La recta gris sale de la tasa
+            libre de riesgo y su pendiente es el Sharpe de la cartera tangente.</p>
+        </figure>
+        <div class="comentario" id="comentario"></div>
+      </div>
+    </div>
+  </section>
+
   <section class="panel panel-metodo">
     <h2>Cómo está hecho</h2>
     <div class="metodo-cols">
@@ -186,6 +266,14 @@
       <div>
         <h3>El cálculo</h3>
         <p>Correlación de Pearson sobre retornos logarítmicos diarios, par a par, usando sólo las ruedas donde ambos tienen dato. Una correlación de ventana corta se mueve mucho: mirá la serie móvil antes de sacar conclusiones.</p>
+      </div>
+      <div>
+        <h3>La cartera</h3>
+        <p>Markowitz clásico: media y covarianza de la ventana, sólo posiciones largas y tope por activo. El tope no es decorativo — sin él, maximizar Sharpe sobre 50 activos con 252 datos concentra todo en dos o tres posiciones. Los tres perfiles son tres puntos de la misma frontera, no tres modelos distintos.</p>
+      </div>
+      <div>
+        <h3>Por qué desconfiar del Sharpe</h3>
+        <p>La cartera se elige mirando el mismo período con el que después se la califica, así que su Sharpe está inflado por construcción: es el mejor recorrido <em>del pasado</em>, no una expectativa. Por eso al lado siempre está el de la equiponderada, que no optimizó nada.</p>
       </div>
     </div>
     <div class="legal">
@@ -208,5 +296,6 @@
 <div id="tooltip" class="tooltip" hidden aria-hidden="true"></div>
 
 <script src="app.js"></script>
+<script src="cartera.js"></script>
 </body>
 </html>

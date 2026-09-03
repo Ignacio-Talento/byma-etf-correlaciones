@@ -19,8 +19,10 @@ retornos diarios. En el tablero se puede:
 - filtrar por categoría, resaltar un ticker, y abrir cualquier par para ver su
   **correlación móvil** — si el número de hoy es estable o es un momento suelto;
 - ver la **tabla completa** de los 1.431 pares y bajarla en CSV;
-- y armar una **cartera diversificada por perfil de riesgo** sobre la frontera
-  eficiente de Markowitz.
+- armar una **cartera diversificada por perfil de riesgo** sobre la frontera
+  eficiente de Markowitz;
+- y ver, en el **backtest walk-forward**, qué habría rendido cada estrategia de
+  verdad — con el costo de operar como control en vivo.
 
 ## Decisiones que vale la pena conocer
 
@@ -94,6 +96,47 @@ backtracking sobre el símplex con tope). Sus pesos se compararon contra una
 implementación independiente en Python con `scipy.optimize` (SLSQP): coinciden en
 retorno, volatilidad, Sharpe y en los once pesos, al segundo decimal.
 
+## El backtest walk-forward
+
+La sección de cartera muestra la mejor combinación *del período que ya pasó*. Eso
+no dice nada sobre si la estrategia sirve. El walk-forward responde la otra
+pregunta, y es la única parte de la herramienta que es genuinamente fuera de
+muestra.
+
+**Protocolo**, estrictamente point-in-time: a cada fin de mes se optimiza usando
+sólo las 252 ruedas anteriores, los pesos se aplican **desde el día siguiente** y
+se dejan derivar hasta el próximo rebalanceo. El universo es variable en el
+tiempo: en cada fecha entran únicamente los ETFs que ya tenían historia ese día
+(IBIT y ETHA no existían en 2019 y no aparecen en las carteras de esos años). Se
+comparan máximo Sharpe, mínima varianza, paridad de riesgo, 1/N y comprar SPY.
+
+**El resultado, con 109 rebalanceos entre 2017 y 2026:**
+
+| Costo por punta | 0 pb | 20 pb | 50 pb | 100 pb | 200 pb |
+|---|---|---|---|---|---|
+| Máx. Sharpe (rota 294%/año) | **0,82** | **0,75** | 0,64 | 0,47 | 0,13 |
+| Mín. varianza (115%) | 0,70 | 0,66 | 0,60 | 0,50 | 0,31 |
+| Paridad de riesgo (48%) | 0,64 | 0,63 | 0,61 | 0,58 | 0,52 |
+| 1/N (26%) | 0,60 | 0,60 | 0,59 | 0,58 | 0,55 |
+| SPY (no rota) | 0,67 | 0,67 | **0,67** | **0,67** | **0,67** |
+
+Sin fricción el máximo Sharpe gana con comodidad. Pasando los ~50 pb por punta
+—perfectamente normal en CEDEARs— **lo mejor es comprar SPY y no hacer nada**, y
+pasados los 100 pb el máximo Sharpe queda último. Rota 294% al año: es la única
+estrategia cuyo veredicto cambia de signo según el costo, y por eso el costo es
+un control en vivo del tablero y no un parámetro escondido.
+
+Además, el máximo Sharpe **le gana a 1/N en sólo 5 de 10 años calendario**: el
+promedio lo sostienen 2020 y los dos últimos años. La ventaja no es pareja.
+
+**Sesgo que queda:** el universo son los ETFs que BYMA lista *hoy*, y esa
+selección se hizo en parte mirando cuáles anduvieron bien. Empuja para arriba a
+todas las estrategias por igual, así que la comparación entre ellas se sostiene;
+los niveles absolutos, menos.
+
+Los rebalanceos se cachean en `data/backtest_pesos.csv`: la primera construcción
+tarda ~90 segundos y las corridas diarias, menos de un segundo.
+
 ## Identidad visual
 
 Aplica el sistema de diseño de **Balanz**: paleta navy/cyan, Open Sans (self-hosted
@@ -119,6 +162,9 @@ data/tasa_libre_riesgo.csv    T-bill EE.UU. 13 semanas, para el Sharpe
 data/no_son_etf.json          caché del barrido de altas de BYMA
 docs/                         el sitio (GitHub Pages)
 docs/cartera.js               frontera eficiente y perfiles de riesgo
+docs/backtest.js              curvas walk-forward y sensibilidad al costo
+scripts/backtest.py           motor del walk-forward (precalcula el backtest)
+data/backtest_pesos.csv       cache de los pesos de cada rebalanceo
 docs/marca/                   wordmark Balanz + Open Sans (OFL)
 docs/data/dataset.json        lo que consume el tablero
 .github/workflows/            el job diario

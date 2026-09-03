@@ -247,6 +247,87 @@
     </div>
   </section>
 
+  <!-- ================= Walk-forward ================= -->
+  <section class="panel panel-backtest" id="panel-backtest">
+    <div class="panel-cab">
+      <div>
+        <span class="eyebrow oscuro">Backtest walk-forward</span>
+        <h2>Qué habría rendido de verdad</h2>
+        <p class="panel-sub" id="bt-sub">&mdash;</p>
+      </div>
+      <div class="bt-controles">
+        <div class="filtro">
+          <label for="bt-costo">Costo por punta — <span id="bt-costo-val">50 pb</span></label>
+          <input type="range" id="bt-costo" min="0" max="200" step="5" value="50">
+        </div>
+        <label class="check"><input type="checkbox" id="bt-escala" checked> Escala logarítmica</label>
+      </div>
+    </div>
+
+    <p class="advertencia bt-aviso">
+      Acá la cartera se arma <strong>sólo con datos anteriores</strong> a cada fecha y después
+      se la deja correr: a cada fin de mes se optimiza con las 252 ruedas previas, los pesos se
+      aplican desde el día siguiente y se dejan derivar hasta el próximo rebalanceo. El universo
+      es variable en el tiempo — IBIT y ETHA no existían en 2019 y no aparecen en las carteras
+      de esos años. Esto sí es fuera de muestra.
+    </p>
+
+    <div class="bt-grid">
+      <figure class="bt-fig">
+        <figcaption>Capital acumulado, neto del costo elegido</figcaption>
+        <svg id="g-backtest" role="img" aria-label="Curvas de capital acumulado de cada estrategia"></svg>
+      </figure>
+
+      <div class="bt-lateral">
+        <div class="tabla-scroll">
+          <table id="tabla-bt" class="tabla-datos">
+            <thead><tr>
+              <th>Estrategia</th><th class="num">CAGR</th><th class="num">Vol</th>
+              <th class="num">Sharpe</th><th class="num">Sortino</th>
+              <th class="num">Máx. caída</th><th class="num">Rotación</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="veredicto" id="veredicto"></div>
+      </div>
+    </div>
+
+    <div class="bt-grid-2">
+      <div>
+        <h3>El costo decide el ganador</h3>
+        <p class="panel-sub">Sharpe de cada estrategia según cuánto cueste operar. La columna
+          resaltada es la que estás mirando arriba.</p>
+        <table id="tabla-sens" class="tabla-datos compacta">
+          <thead><tr>
+            <th>Estrategia</th><th class="num">0 pb</th><th class="num">20 pb</th>
+            <th class="num">50 pb</th><th class="num">100 pb</th><th class="num">200 pb</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div>
+        <h3>Año por año</h3>
+        <p class="panel-sub">Si la ventaja viene de dos años buenos, no es una ventaja.</p>
+        <div class="tabla-scroll tabla-anios-scroll">
+          <table id="tabla-anios" class="tabla-datos compacta">
+            <thead><tr></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="nota" id="nota-anios"></p>
+      </div>
+    </div>
+
+    <p class="nota bt-sesgo">
+      <strong>Un sesgo que queda y conviene tener presente:</strong> el universo son los ETFs que
+      BYMA lista <em>hoy</em>. Los que nunca se listaron acá, o dejaron de listarse, no están —
+      y esa selección se hizo, en parte, mirando cuáles anduvieron bien. Empuja para arriba a
+      todas las estrategias por igual, así que la comparación entre ellas se sostiene; los
+      niveles absolutos, menos.
+    </p>
+  </section>
+
   <section class="panel panel-metodo">
     <h2>Cómo está hecho</h2>
     <div class="metodo-cols">
@@ -275,6 +356,10 @@
         <h3>Por qué desconfiar del Sharpe</h3>
         <p>La cartera se elige mirando el mismo período con el que después se la califica, así que su Sharpe está inflado por construcción: es el mejor recorrido <em>del pasado</em>, no una expectativa. Por eso al lado siempre está el de la equiponderada, que no optimizó nada.</p>
       </div>
+      <div>
+        <h3>El backtest</h3>
+        <p>Es la única parte que es genuinamente fuera de muestra: cada cartera se arma sólo con datos anteriores a su fecha. Ahí aparece lo que la foto optimizada esconde — que el máximo Sharpe rota 294% al año y que, pasado cierto costo de operar, deja de convenir.</p>
+      </div>
     </div>
     <div class="legal">
       <p>Herramienta de análisis. Las correlaciones pasadas no se sostienen solas: suelen dispararse justo cuando más falta hace que no lo hagan.</p>
@@ -297,5 +382,6 @@
 
 <script src="app.js"></script>
 <script src="cartera.js"></script>
+<script src="backtest.js"></script>
 </body>
 </html>

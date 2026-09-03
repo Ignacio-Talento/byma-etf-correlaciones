@@ -717,6 +717,7 @@ function aplicarTema(t) {
   logoSegunTema();
   if (estado.datos) recalcular();
   if (window.redibujarCartera) window.redibujarCartera();
+  if (window.redibujarBacktest) window.redibujarBacktest();
 }
 
 /** El wordmark del pie va navy sobre claro y blanco sobre navy. */
@@ -822,6 +823,7 @@ async function iniciar() {
   recalcular();
   seleccionar('SPY', 'GLD');
   if (window.iniciarCartera) window.iniciarCartera();
+  if (window.iniciarBacktest) window.iniciarBacktest();
 }
 
 iniciar();

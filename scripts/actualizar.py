@@ -42,6 +42,12 @@ POR_CORRIDA = 60
 # ventana mas larga del tablero (504) y mantiene liviano el JSON.
 RUEDAS_PUBLICADAS = 760
 
+# csv.writer termina las lineas con CRLF por defecto. Estos CSV los escribe
+# tanto una corrida a mano en Windows como el job diario en Linux: si cada uno
+# usa su final de linea, git ve las 66.000 filas del archivo como cambiadas y
+# el diff diario deja de servir. Forzamos LF, que es como los guarda el repo.
+LF = "\n"
+
 
 def log(msg):
     print(msg, flush=True)
@@ -67,7 +73,7 @@ def escribir_csv_precios(store):
             filas.append((f, tk, store[tk][f]))
     filas.sort()
     with open(CSV_PRECIOS, "w", newline="", encoding="utf-8") as fh:
-        w = csv.writer(fh)
+        w = csv.writer(fh, lineterminator=LF)
         w.writerow(["fecha", "ticker", "cierre"])
         for f, tk, p in filas:
             w.writerow([f, tk, "%.6f" % p])
@@ -85,7 +91,7 @@ def leer_csv_simple(ruta, col):
 
 def escribir_csv_simple(ruta, col, store, dec=4):
     with open(ruta, "w", newline="", encoding="utf-8") as fh:
-        w = csv.writer(fh)
+        w = csv.writer(fh, lineterminator=LF)
         w.writerow(["fecha", col])
         for f in sorted(store):
             w.writerow([f, ("%." + str(dec) + "f") % store[f]])
@@ -102,7 +108,7 @@ def leer_csv_ccl():
 
 def escribir_csv_ccl(store):
     with open(CSV_CCL, "w", newline="", encoding="utf-8") as fh:
-        w = csv.writer(fh)
+        w = csv.writer(fh, lineterminator=LF)
         w.writerow(["fecha", "ccl"])
         for f in sorted(store):
             w.writerow([f, "%.4f" % store[f]])

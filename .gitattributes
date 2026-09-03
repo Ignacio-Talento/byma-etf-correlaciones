@@ -1,0 +1,8 @@
+# Los datos los escribe este repo desde dos lados: a mano en Windows y el job
+# diario en Linux. Sin esto, cada lado guarda el archivo con su propio final de
+# linea y el diff de 66.000 filas del CSV queda inservible.
+* text=auto eol=lf
+
+# Binarios: que git no los toque.
+*.png binary
+*.ttf binary

@@ -5,23 +5,31 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Correlaciones de ETFs en BYMA</title>
 <meta name="description" content="Matriz de correlaciones de los ETFs que cotizan en BYMA. Se actualiza todos los dias con el cierre de mercado.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='7' height='7' x='1' y='1' fill='%232a78d6'/%3E%3Crect width='7' height='7' x='8' y='8' fill='%23c74845'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23002060'/%3E%3Crect width='5' height='5' x='2' y='2' fill='%2300B0F0'/%3E%3Crect width='5' height='5' x='9' y='9' fill='%23A7B2C8'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="estilos.css">
 </head>
 <body>
 
-<header class="cabecera">
-  <div class="cabecera-txt">
-    <h1>Correlaciones de ETFs en BYMA</h1>
-    <p class="sub">Los <strong id="conteo-etfs">&mdash;</strong> ETFs que cotizan en BYMA como CEDEAR, correlacionados por sus retornos diarios.</p>
-  </div>
-  <div class="estado">
-    <div class="estado-dato"><span class="estado-lbl">Ultimo cierre</span><span class="estado-val" id="ultima-rueda">&mdash;</span></div>
-    <div class="estado-dato"><span class="estado-lbl">Actualizado</span><span class="estado-val" id="generado">&mdash;</span></div>
-    <button id="tema" class="btn-tema" type="button" title="Cambiar entre claro y oscuro" aria-label="Cambiar tema">&#9681;</button>
+<header class="banda">
+  <div class="envoltura banda-fila">
+    <div class="marca">
+      <img src="marca/balanz_wordmark_white.png" alt="Balanz" width="120" height="26">
+      <span class="marca-div" aria-hidden="true"></span>
+      <div class="cabecera-txt">
+        <span class="eyebrow">Research &middot; Mercado de capitales</span>
+        <h1>Correlaciones de ETFs en BYMA</h1>
+        <p class="sub">Los <strong id="conteo-etfs">&mdash;</strong> ETFs que cotizan en BYMA como CEDEAR, correlacionados por sus retornos diarios.</p>
+      </div>
+    </div>
+    <div class="estado">
+      <div class="estado-dato"><span class="estado-lbl">Último cierre</span><span class="estado-val" id="ultima-rueda">&mdash;</span></div>
+      <div class="estado-dato"><span class="estado-lbl">Actualizado</span><span class="estado-val" id="generado">&mdash;</span></div>
+      <button id="tema" class="btn-tema" type="button" title="Cambiar entre claro y oscuro" aria-label="Cambiar tema">&#9681;</button>
+    </div>
   </div>
 </header>
 
+<div class="envoltura">
 <div id="avisos" class="avisos" hidden></div>
 
 <!-- Una sola fila de filtros, arriba de todo lo que condiciona -->
@@ -180,14 +188,22 @@
         <p>Correlación de Pearson sobre retornos logarítmicos diarios, par a par, usando sólo las ruedas donde ambos tienen dato. Una correlación de ventana corta se mueve mucho: mirá la serie móvil antes de sacar conclusiones.</p>
       </div>
     </div>
-    <p class="descargo">Datos de BYMA, Yahoo Finance y api.argentinadatos.com. Es una herramienta de análisis, no una recomendación de inversión. Las correlaciones pasadas no se sostienen solas: suelen dispararse justo cuando más se necesita que no lo hagan.</p>
+    <div class="legal">
+      <p>Herramienta de análisis. Las correlaciones pasadas no se sostienen solas: suelen dispararse justo cuando más falta hace que no lo hagan.</p>
+      <p>El destinatario deberá evaluar por sí mismo la conveniencia de invertir en los presentes valores negociables. Balanz no brinda garantías ni asegura rentabilidades o resultados de los mismos. ALYC N° 210 y ACDI N° 62 ante la CNV. IGJ N° 13981 del L. 40, T. – SOCIEDAD POR ACCIONES CUIT: 30-71063067-0.</p>
+    </div>
   </section>
-</main>
 
-<footer class="pie">
-  <span id="pie-fuentes"></span>
-  <a href="https://github.com/Ignacio-Talento/byma-etf-correlaciones">Código y datos en GitHub</a>
-</footer>
+  <footer class="pie">
+    <div class="pie-marca">
+      <img src="marca/balanz_wordmark_navy.png" alt="Balanz" width="83" height="18" id="logo-pie">
+      <span class="lockup">N°1 en Inversiones</span>
+    </div>
+    <span id="pie-fuentes"></span>
+    <a href="https://github.com/Ignacio-Talento/byma-etf-correlaciones">Código y datos en GitHub</a>
+  </footer>
+</main>
+</div>
 
 <div id="tooltip" class="tooltip" hidden aria-hidden="true"></div>
 

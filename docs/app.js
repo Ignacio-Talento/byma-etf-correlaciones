@@ -94,7 +94,7 @@ function tintaSobre(hex) {
   const lum = 0.2126 * srgbALineal(parseInt(h.slice(0, 2), 16) / 255)
             + 0.7152 * srgbALineal(parseInt(h.slice(2, 4), 16) / 255)
             + 0.0722 * srgbALineal(parseInt(h.slice(4, 6), 16) / 255);
-  return lum > 0.35 ? '#0b0b0b' : '#ffffff';
+  return lum > 0.35 ? '#002060' : '#FFFFFF';   // navy de marca, no negro
 }
 
 /* ------------------------------------------------------------ calculo --- */
@@ -372,8 +372,8 @@ function dibujarMapa() {
 
   // --- capa de resaltado (cruz + marco), se mueve sin volver a dibujar
   const gHi = el('g', { id: 'capa-hi' });
-  gHi.appendChild(el('rect', { id: 'banda-fila', class: 'banda', width: 0, height: 0 }));
-  gHi.appendChild(el('rect', { id: 'banda-col', class: 'banda', width: 0, height: 0 }));
+  gHi.appendChild(el('rect', { id: 'banda-fila', class: 'banda-hi', width: 0, height: 0 }));
+  gHi.appendChild(el('rect', { id: 'banda-col', class: 'banda-hi', width: 0, height: 0 }));
   gHi.appendChild(el('rect', { id: 'marco', class: 'marco', width: 0, height: 0 }));
   svg.appendChild(gHi);
 
@@ -714,7 +714,16 @@ function aplicarTema(t) {
   try { localStorage.setItem('tema', t); } catch (e) { /* modo privado */ }
   leerPolos();
   dibujarLeyenda();
+  logoSegunTema();
   if (estado.datos) recalcular();
+}
+
+/** El wordmark del pie va navy sobre claro y blanco sobre navy. */
+function logoSegunTema() {
+  const img = $('#logo-pie');
+  if (!img) return;
+  const oscuro = temaActual() === 'dark';
+  img.src = oscuro ? 'marca/balanz_wordmark_white.png' : 'marca/balanz_wordmark_navy.png';
 }
 
 function temaActual() {
@@ -775,6 +784,7 @@ async function iniciar() {
   catch (e) { /* modo privado */ }
   leerPolos();
   dibujarLeyenda();
+  logoSegunTema();
 
   let d;
   try {

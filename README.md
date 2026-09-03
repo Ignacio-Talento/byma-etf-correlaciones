@@ -54,6 +54,19 @@ ruedas donde ambos tienen dato (mínimo 20). La matriz se calcula en el navegado
 a partir de la serie de retornos, así que cambiar de ventana o de moneda es
 instantáneo y no hay que precomputar una matriz por combinación.
 
+## Identidad visual
+
+Aplica el sistema de diseño de **Balanz**: paleta navy/cyan, Open Sans (self-hosted
+en `docs/marca/fuentes/`, licencia OFL), wordmark oficial y disclaimer legal verbatim.
+
+Una decisión que vale explicar: la escala del heatmap **no** usa navy y cyan como los
+dos polos. Una escala divergente necesita que los extremos se lean como opuestos, y
+navy (h=261°) y cyan (h=234°) son **los dos fríos** — puestos en los dos extremos, el
+lector no distingue el signo de la correlación. Los polos salen del matiz exacto del
+navy y del rojo de la paleta (`#C0392B`), llevados a la misma luminosidad en OKLab
+para que −0,6 y +0,6 pesen visualmente igual, con un medio neutro de croma casi nula
+para que el cero lea "nada".
+
 ## Cómo está armado
 
 ```
@@ -64,6 +77,7 @@ data/precios.csv              historia acumulada de cierres (el log de git es la
 data/ccl.csv                  serie del contado con liquidación
 data/no_son_etf.json          caché del barrido de altas de BYMA
 docs/                         el sitio (GitHub Pages)
+docs/marca/                   wordmark Balanz + Open Sans (OFL)
 docs/data/dataset.json        lo que consume el tablero
 .github/workflows/            el job diario
 ```

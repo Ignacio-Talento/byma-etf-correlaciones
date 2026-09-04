@@ -221,16 +221,22 @@ function frontera(mu, cov, tope, puntos = 46) {
     principales del riesgo, no los activos, porque dos posiciones distintas
     pueden ser la misma apuesta. Solo corre sobre las posiciones con peso
     (una decena), asi que el costo cubico no molesta. */
-function jacobiEigen(M0, iters = 100) {
+function jacobiEigen(M0, iters = 30) {
   const n = M0.length;
   const A = M0.map((f) => f.slice());
   let V = Array.from({ length: n }, (_, i) =>
     Array.from({ length: n }, (_, j) => (i === j ? 1 : 0)));
 
+  // Corte RELATIVO a la escala de la matriz: con covarianzas diarias (~1e-4)
+  // un umbral absoluto obliga a barridos de mas que no cambian el resultado.
+  let escala = 0;
+  for (let i = 0; i < n; i++) escala += A[i][i] * A[i][i];
+  const umbral = Math.max(escala, 1e-300) * 1e-18;
+
   for (let barrido = 0; barrido < iters; barrido++) {
     let fuera = 0;
     for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) fuera += A[i][j] * A[i][j];
-    if (fuera < 1e-24) break;
+    if (fuera < umbral) break;
     for (let p = 0; p < n - 1; p++) {
       for (let q = p + 1; q < n; q++) {
         if (Math.abs(A[p][q]) < 1e-18) continue;
@@ -301,6 +307,66 @@ function apuestasEfectivas(pesos, cov) {
   }
   for (const p of reparto) if (p > 1e-12) ent -= (p / suma) * Math.log(p / suma);
   return { n: Math.exp(ent), reparto: reparto.map((p) => p / suma) };
+}
+
+/* -------------------------------------------------------------- colas --- */
+
+/** Metricas que el Sharpe no ve.
+    El Sharpe supone normalidad y divide por el desvio, que castiga igual a la
+    volatilidad de subida que a la de bajada. Con cripto, commodities y
+    volatilidad en el panel, la distribucion tiene colas gordas y asimetria:
+    dos carteras con el mismo Sharpe pueden tener caidas maximas muy distintas.
+    Se calcula sobre la serie de la cartera reconstruida con pesos fijos. */
+function metricasDeCola(w, tickers, ventana, rfAnual) {
+  const d = estado.datos;
+  const largo = d.fechas.length;
+  const desde = Math.max(0, largo - ventana);
+  const series = tickers.map((tk) => d.etfs[tk].ret);
+
+  const rets = [];
+  for (let t = desde; t < largo; t++) {
+    let acum = 0, peso = 0;
+    for (let i = 0; i < w.length; i++) {
+      if (w[i] <= 0) continue;
+      const r = series[i][t];
+      if (r === null) continue;
+      acum += w[i] * r; peso += w[i];
+    }
+    if (peso > 0.5) rets.push(acum / peso);
+  }
+  if (rets.length < 60) return null;
+
+  const n = rets.length;
+  const m = rets.reduce((a, b) => a + b, 0) / n;
+  const v = rets.reduce((a, b) => a + (b - m) ** 2, 0) / (n - 1);
+  const sd = Math.sqrt(v);
+  const sesgo = rets.reduce((a, b) => a + ((b - m) / sd) ** 3, 0) / n;
+  const curtosis = rets.reduce((a, b) => a + ((b - m) / sd) ** 4, 0) / n - 3;
+
+  // Caida maxima sobre la curva de capital de la ventana
+  let nav = 1, pico = 1, maxDD = 0;
+  const curva = [1];
+  for (const r of rets) { nav *= Math.exp(r); curva.push(nav); pico = Math.max(pico, nav); maxDD = Math.min(maxDD, nav / pico - 1); }
+
+  // VaR y CVaR historicos al 95%: sin supuestos de distribucion, contando
+  // los peores dias que efectivamente pasaron.
+  const orden = rets.slice().sort((a, b) => a - b);
+  const k = Math.max(1, Math.floor(n * 0.05));
+  const var95 = Math.exp(orden[k - 1]) - 1;
+  const cvar95 = orden.slice(0, k).reduce((a, b) => a + (Math.exp(b) - 1), 0) / k;
+
+  // Sortino: castiga solo la volatilidad de bajada
+  const obj = rfAnual / DIAS_ANIO;
+  const abajo = rets.filter((r) => r < obj).map((r) => (r - obj) ** 2);
+  const volAbajo = abajo.length ? Math.sqrt(abajo.reduce((a, b) => a + b, 0) / n * DIAS_ANIO) : 0;
+  const retAnual = m * DIAS_ANIO;
+
+  return {
+    n, sesgo, curtosis, maxDD, var95, cvar95,
+    sortino: volAbajo > 0 ? (retAnual - rfAnual) / volAbajo : null,
+    peorDia: Math.exp(orden[0]) - 1,
+    curva,
+  };
 }
 
 /* --------------------------------------------------- implementabilidad --- */
@@ -381,8 +447,9 @@ function componer(w, tickers, st) {
   }
   const conRiesgo = contribucionAlRiesgo(pesos, st.cov);
   const apuestas = apuestasEfectivas(pesos, st.cov);
+  const colas = metricasDeCola(w, tickers, CART.lookback, st.rfAnual);
   return {
-    w, ...m, pesos: conRiesgo,
+    w, ...m, pesos: conRiesgo, colas,
     corrMedia: correlacionMedia(w, st.corr),
     nEfectivo: posicionesEfectivas(w),
     apuestas,
@@ -849,6 +916,28 @@ function comentario(r, c) {
         : ''));
   }
 
+  // Lo que el Sharpe no ve.
+  const k = c.colas;
+  if (k) {
+    const gordas = k.curtosis > 1;
+    const zurda = k.sesgo < -0.2;
+    partes.push(
+      `<p><strong>Lo que el Sharpe no ve.</strong> En esta ventana la cartera tuvo una caída `
+      + `máxima de <strong>${pctC(k.maxDD)}</strong>, y en el 5% de peores ruedas perdió `
+      + `<strong>${pctC(k.cvar95)}</strong> en promedio (CVaR histórico, sin suponer ninguna `
+      + `distribución). El peor día fue ${pctC(k.peorDia)}. `
+      + `El Sortino, que castiga sólo la volatilidad de bajada, da `
+      + `<strong>${k.sortino !== null ? num2(k.sortino) : '—'}</strong> contra un Sharpe de `
+      + `${num2(c.sharpe)}.</p>`
+      + `<p class="nota">Asimetría ${num2(k.sesgo)} y curtosis ${num2(k.curtosis)}: `
+      + (gordas
+        ? `las colas son más gordas que las de una normal, así que el Sharpe —que supone `
+          + `normalidad— subestima el riesgo de los días malos.`
+        : `la distribución no se aleja demasiado de una normal en esta ventana.`)
+      + (zurda ? ` Y el sesgo es negativo: las caídas son más bruscas que las subidas.` : '')
+      + `</p>`);
+  }
+
   // Lo que cuesta armarla de verdad, en el mercado local.
   const costo = costoDeArmado(c.pesos);
   if (costo.pb !== null) {
@@ -933,6 +1022,10 @@ function dibujarMetricas(r, c) {
   $('#m-corr').textContent = num2(c.corrMedia);
   $('#m-npos').textContent = c.nEfectivo.toFixed(1);
   $('#m-apuestas').textContent = c.apuestas ? c.apuestas.n.toFixed(1) : '—';
+  const k = c.colas;
+  $('#m-maxdd').textContent = k ? pctC(k.maxDD) : '—';
+  $('#m-cvar').textContent = k ? pctC(k.cvar95) : '—';
+  $('#m-sortino').textContent = k && k.sortino !== null ? num2(k.sortino) : '—';
   $('#m-sharpe').style.color = colorPerfil(CART.perfil);
 
   const eq = r.equi;

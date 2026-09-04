@@ -645,3 +645,7 @@ ul.drivers li:last-child { border-bottom: 0; }
 :root:not([data-theme="light"]) #tabla-pesos .riesgo-alto { color: #df6959; }
 :root[data-theme="dark"] #tabla-pesos .riesgo-bajo,
 :root:not([data-theme="light"]) #tabla-pesos .riesgo-bajo { color: #45c98a; }
+
+.metricas .dd-neg { color: #C0392B; }
+:root[data-theme="dark"] .metricas .dd-neg,
+:root:not([data-theme="light"]) .metricas .dd-neg { color: #df6959; }

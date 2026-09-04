@@ -96,6 +96,45 @@ backtracking sobre el símplex con tope). Sus pesos se compararon contra una
 implementación independiente en Python con `scipy.optimize` (SLSQP): coinciden en
 retorno, volatilidad, Sharpe y en los once pesos, al segundo decimal.
 
+## Lo que agrega el panel de cartera
+
+Sobre la cartera optimizada, cuatro lecturas que el peso y el Sharpe no dan:
+
+**Contribución al riesgo.** Un 15% en un ETF de 30% de volatilidad no es la
+misma posición que un 15% en uno de 12%. La tabla muestra `%CTR` junto al peso:
+en la ventana de sep-2026, XLP pesa 15% y aporta 1,8% del riesgo, mientras EWY
+pesa 5,9% y aporta 14,7%. Y las dos medidas de diversificación no coinciden: por
+peso la cartera equivale a 8,1 posiciones, por riesgo son **3,9 apuestas
+independientes** (entropía sobre componentes principales, Meucci).
+
+**Correlación cuando el mercado cae.** El mapa tiene tres modos de ruedas: todas,
+sólo el decil peor del S&P 500, y cuánto sube la correlación entre esos dos
+estados. La comparación es contra las ruedas tranquilas del **mismo período**,
+para no mezclar el efecto crisis con el del momento. Resultado: la correlación
+media del panel **no sube** (+0,33 → +0,31), pero 64 de 1.176 pares suben más de
+0,25 y XLE pasa de +0,16 a **+0,76** contra el S&P.
+
+**Estabilidad de los pesos.** Bootstrap por bloques, 150 remuestreos: sólo 3 de
+16 posiciones aparecen en 8 de cada 10 muestras.
+
+**Colas.** Máxima caída, CVaR 95% histórico, Sortino, asimetría y curtosis. El
+Sharpe supone normalidad y este universo no la tiene.
+
+## Lo que cuesta comprarlo acá
+
+El job guarda a diario el volumen, las operaciones y las puntas del panel de
+BYMA. La mediana de la punta a punta al cierre es de **933 pb**: QQQ es la más
+ajustada con 184 pb y USO cotiza a 4.006 pb.
+
+Armar la cartera de máximo Sharpe cuesta del orden de **752 pb** ponderado por
+peso — y el backtest muestra que pasados los ~100 pb por punta conviene comprar
+SPY y no hacer nada. Dicho de otra forma: **la cartera óptima es, con las puntas
+de este mercado, imposible de sostener.** Es probablemente la conclusión más
+importante de toda la herramienta.
+
+Caveat: son puntas del cierre, más anchas que las intradiarias. Y hoy hay una
+sola rueda acumulada; el tablero publica cuántas hay detrás del número.
+
 ## El backtest walk-forward
 
 La sección de cartera muestra la mejor combinación *del período que ya pasó*. Eso

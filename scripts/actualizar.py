@@ -50,6 +50,10 @@ RUEDAS_PUBLICADAS = 760
 LF = "\n"
 
 
+class SkipLiquidez(Exception):
+    """No corresponde registrar liquidez en esta corrida."""
+
+
 def log(msg):
     print(msg, flush=True)
 
@@ -363,7 +367,14 @@ def main():
 
         # 4. Liquidez del panel local: que se puede operar de verdad
         try:
-            hoy = dt.date.today().isoformat()
+            # Fecha en hora argentina, no la del runner: el job corre en UTC y
+            # la segunda pasada (06:00 UTC) cae de madrugada en Buenos Aires.
+            # Sin esto, los datos del viernes se guardarian como sabado y esa
+            # rueda contaria dos veces en la mediana.
+            ahora_ar = dt.datetime.now(dt.UTC) - dt.timedelta(hours=3)
+            if ahora_ar.weekday() >= 5:
+                raise SkipLiquidez("fin de semana en Buenos Aires: el panel no es de hoy")
+            hoy = ahora_ar.date().isoformat()
             panel = fuentes.panel_liquidez()
             liq = [f for f in liq if f["fecha"] != hoy]
             for tk in tickers:
@@ -378,6 +389,8 @@ def main():
                             "bid": "%.4f" % d["bid"], "ask": "%.4f" % d["ask"]})
             liq.sort(key=lambda f: (f["fecha"], f["ticker"]))
             escribir_csv_liquidez(liq)
+        except SkipLiquidez as e:
+            log("Liquidez: no se registra (%s)" % e)
         except Exception as e:
             avisos.append("No se pudo leer la liquidez del panel: %s" % e)
 

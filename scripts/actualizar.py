@@ -30,6 +30,7 @@ UNIVERSO = os.path.join(RAIZ, "universo.json")
 CSV_PRECIOS = os.path.join(RAIZ, "data", "precios.csv")
 CSV_CCL = os.path.join(RAIZ, "data", "ccl.csv")
 CSV_TASA = os.path.join(RAIZ, "data", "tasa_libre_riesgo.csv")
+CSV_LIQ = os.path.join(RAIZ, "data", "liquidez.csv")
 CACHE_NO_ETF = os.path.join(RAIZ, "data", "no_son_etf.json")
 SALIDA = os.path.join(RAIZ, "docs", "data", "dataset.json")
 
@@ -158,6 +159,69 @@ def rellenar_ccl(fechas, ccl):
     return niveles, rets
 
 
+def leer_csv_liquidez():
+    """[(fecha, ticker, volumen_ars, operaciones, bid, ask), ...]"""
+    filas = []
+    if os.path.exists(CSV_LIQ):
+        with open(CSV_LIQ, newline="", encoding="utf-8") as fh:
+            for f in csv.DictReader(fh):
+                filas.append(f)
+    return filas
+
+
+def escribir_csv_liquidez(filas):
+    with open(CSV_LIQ, "w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh, lineterminator=LF)
+        w.writerow(["fecha", "ticker", "volumen_ars", "operaciones", "bid", "ask"])
+        for f in filas:
+            w.writerow([f["fecha"], f["ticker"], f["volumen_ars"],
+                        f["operaciones"], f["bid"], f["ask"]])
+
+
+def mediana(xs):
+    xs = sorted(xs)
+    n = len(xs)
+    if not n:
+        return None
+    return xs[n // 2] if n % 2 else (xs[n // 2 - 1] + xs[n // 2]) / 2
+
+
+def resumen_liquidez(filas, tickers):
+    """Mediana por ticker de las ruedas guardadas.
+
+    Con una sola rueda es apenas una foto; el job va acumulando y el numero
+    se vuelve representativo solo. Por eso se publica cuantas ruedas hay
+    detras: sin eso, el lector no sabe cuanto creerle.
+    """
+    por_tk = {}
+    fechas = set()
+    for f in filas:
+        tk = f["ticker"]
+        if tk not in tickers:
+            continue
+        fechas.add(f["fecha"])
+        d = por_tk.setdefault(tk, {"vol": [], "ops": [], "spread": []})
+        try:
+            v = float(f["volumen_ars"]); o = int(f["operaciones"])
+            b = float(f["bid"]); a = float(f["ask"])
+        except (TypeError, ValueError):
+            continue
+        d["vol"].append(v)
+        d["ops"].append(o)
+        if b > 0 and a > 0 and a >= b:
+            d["spread"].append((a - b) / ((a + b) / 2) * 10000)
+
+    out = {}
+    for tk, d in por_tk.items():
+        out[tk] = {
+            "volumenArs": mediana(d["vol"]),
+            "operaciones": mediana(d["ops"]),
+            "spreadPb": mediana(d["spread"]),
+            "ruedasConPunta": len(d["spread"]),
+        }
+    return out, len(fechas)
+
+
 def detectar_etfs(simbolos):
     """Busca ETFs entre los simbolos del panel que todavia no conocemos.
 
@@ -222,6 +286,7 @@ def main():
     precios = leer_csv_precios()
     ccl = leer_csv_ccl()
     tasa = leer_csv_simple(CSV_TASA, "tasa_anual_pct")
+    liq = leer_csv_liquidez()
     avisos = []
     en_byma = {tk: None for tk in tickers}
 
@@ -265,7 +330,25 @@ def main():
         except Exception as e:
             avisos.append("No se pudo actualizar el CCL: %s" % e)
 
-        # 4. Tasa libre de riesgo en USD, para el Sharpe de la frontera
+        # 4. Liquidez del panel local: que se puede operar de verdad
+        try:
+            hoy = dt.date.today().isoformat()
+            panel = fuentes.panel_liquidez()
+            liq = [f for f in liq if f["fecha"] != hoy]
+            for tk in tickers:
+                d = panel.get(tk)
+                if not d:
+                    continue
+                liq.append({"fecha": hoy, "ticker": tk,
+                            "volumen_ars": "%.2f" % d["volumen_ars"],
+                            "operaciones": str(d["operaciones"]),
+                            "bid": "%.4f" % d["bid"], "ask": "%.4f" % d["ask"]})
+            liq.sort(key=lambda f: (f["fecha"], f["ticker"]))
+            escribir_csv_liquidez(liq)
+        except Exception as e:
+            avisos.append("No se pudo leer la liquidez del panel: %s" % e)
+
+        # 5. Tasa libre de riesgo en USD, para el Sharpe de la frontera
         try:
             tasa.update(dict(fuentes.serie_tasa_libre_riesgo(args.rango)))
         except Exception as e:
@@ -279,7 +362,7 @@ def main():
     if faltantes:
         raise SystemExit("Sin precios para: %s" % ", ".join(faltantes))
 
-    # 5. Eje de fechas = ruedas donde cotizo al menos la mitad del universo.
+    # 6. Eje de fechas = ruedas donde cotizo al menos la mitad del universo.
     # Filtra dias sueltos o medias ruedas que aparecen en una sola serie.
     cuenta = {}
     for tk in tickers:
@@ -296,6 +379,7 @@ def main():
         avisos.append("Sin CCL para el ultimo cierre: la vista en pesos "
                       "puede quedar desactualizada.")
 
+    resumen_liq, ruedas_liq = resumen_liquidez(liq, set(tickers))
     salida_etfs = {}
     for tk in tickers:
         rets = log_retornos(fechas, precios[tk])
@@ -305,6 +389,7 @@ def main():
             "categoria": meta["categoria"],
             "apalancamiento": meta.get("apalancamiento", 1),
             "driver": meta.get("driver", ""),
+            "liquidez": resumen_liq.get(tk),
             "enByma": en_byma[tk],
             "ret": [None if r is None else round(r, 6) for r in rets],
         }
@@ -322,12 +407,14 @@ def main():
             "pct": [None if v is None else round(v, 4) for v in niveles_tasa],
             "descripcion": "T-bill EE.UU. 13 semanas (^IRX), % anual",
         },
+        "liquidezRuedas": ruedas_liq,
         "avisos": avisos,
         "fuentes": {
             "universo": "Panel de CEDEARs de BYMA (open.bymadata.com.ar)",
             "precios": "Cierres ajustados del ETF subyacente en EE.UU. (Yahoo Finance)",
             "ccl": "Contado con liquidacion (api.argentinadatos.com)",
             "tasa": "T-bill EE.UU. 13 semanas, ^IRX (Yahoo Finance)",
+            "liquidez": "Volumen, operaciones y puntas del cierre del panel de BYMA",
         },
     }
 

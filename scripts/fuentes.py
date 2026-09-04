@@ -129,3 +129,32 @@ def serie_tasa_libre_riesgo(rango="5y"):
     optimiza en dolares, asi que la libre de riesgo tiene que ser en dolares.
     """
     return serie_yahoo("^IRX", rango)
+
+
+# --------------------------------------------------------------------------
+# Liquidez local: lo que se puede operar de verdad en BYMA
+# --------------------------------------------------------------------------
+
+def panel_liquidez():
+    """Volumen, operaciones y puntas del cierre, por especie de BYMA.
+
+    El optimizador razona sobre el subyacente en EE.UU., pero el que compra
+    lo hace con el CEDEAR local. Un peso del 15% en algo que opera dos veces
+    por semana no es una cartera, es un dibujo.
+
+    Devuelve {simbolo: {volumen_ars, operaciones, bid, ask}}.
+    """
+    r = _get(BYMA_CEDEARS, datos={"T1": True, "T0": False, "T2": True})
+    crudo = r.get("data", r) if isinstance(r, dict) else r
+    out = {}
+    for x in crudo:
+        s = (x.get("symbol") or "").upper()
+        if not s:
+            continue
+        out[s] = {
+            "volumen_ars": float(x.get("volumeAmount") or 0),
+            "operaciones": int(x.get("numberOfOrders") or 0),
+            "bid": float(x.get("bidPrice") or 0),
+            "ask": float(x.get("offerPrice") or 0),
+        }
+    return out

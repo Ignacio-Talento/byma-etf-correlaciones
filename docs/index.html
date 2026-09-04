@@ -210,6 +210,15 @@
             <option value="1">Sin tope</option>
           </select>
         </div>
+        <div class="filtro">
+          <label for="c-monto">Tamaño de cartera</label>
+          <select id="c-monto">
+            <option value="10000000">10 M ARS</option>
+            <option value="50000000" selected>50 M ARS</option>
+            <option value="200000000">200 M ARS</option>
+            <option value="1000000000">1.000 M ARS</option>
+          </select>
+        </div>
         <div class="filtro filtro-check">
           <label class="check"><input type="checkbox" id="c-apal" checked> Excluir apalancados e inversos</label>
         </div>
@@ -239,7 +248,8 @@
           <table id="tabla-pesos">
             <thead><tr><th>ETF</th><th>Categoría</th><th class="num">Peso</th>
               <th class="num" title="Cuánto del riesgo total de la cartera aporta esta posición">% riesgo</th>
-              <th>Peso vs riesgo</th></tr></thead>
+              <th>Peso vs riesgo</th>
+              <th class="num" title="Punta a punta del CEDEAR en BYMA, al cierre">Punta</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>

@@ -24,6 +24,7 @@ const CART = {
   tope: 0.15,
   excluirApal: true,
   perfil: 'moderado',
+  montoArs: 50e6,       // tamano supuesto de la cartera, para medir liquidez
   res: null,
 };
 
@@ -300,6 +301,46 @@ function apuestasEfectivas(pesos, cov) {
   }
   for (const p of reparto) if (p > 1e-12) ent -= (p / suma) * Math.log(p / suma);
   return { n: Math.exp(ent), reparto: reparto.map((p) => p / suma) };
+}
+
+/* --------------------------------------------------- implementabilidad --- */
+
+/** Costo estimado de ARMAR la cartera, cruzando la punta en cada posicion.
+    El optimizador razona sobre el subyacente en EE.UU., pero se compra el
+    CEDEAR local: si la punta esta a 900 pb, la cartera optima puede ser
+    perfectamente incomprable. La media punta es lo que cuesta entrar. */
+function costoDeArmado(pesos) {
+  let costo = 0, cubierto = 0, sinDato = [];
+  for (const p of pesos) {
+    const l = estado.datos.etfs[p.tk].liquidez;
+    if (l && l.spreadPb) {
+      costo += p.w * (l.spreadPb / 2);
+      cubierto += p.w;
+    } else {
+      sinDato.push(p.tk);
+    }
+  }
+  return {
+    pb: cubierto > 0 ? costo / cubierto : null,   // media punta ponderada
+    cubierto, sinDato,
+  };
+}
+
+/** Posiciones que en la practica no se pueden sostener: monto implicado
+    grande contra lo que opera el papel, o punta muy ancha. */
+function alertasLiquidez(pesos, carteraArs) {
+  const out = [];
+  for (const p of pesos) {
+    const l = estado.datos.etfs[p.tk].liquidez;
+    if (!l) continue;
+    const monto = p.w * carteraArs;
+    const razon = l.volumenArs > 0 ? monto / l.volumenArs : Infinity;
+    if (razon > 0.10 || (l.spreadPb && l.spreadPb > 1500)) {
+      out.push({ tk: p.tk, w: p.w, monto, volumen: l.volumenArs,
+                 razon, spreadPb: l.spreadPb });
+    }
+  }
+  return out.sort((a, b) => b.razon - a.razon);
 }
 
 /* ------------------------------------------------------------ metricas --- */
@@ -690,10 +731,23 @@ function dibujarPesos(c) {
       + `<td class="barra-cel">`
         + `<span class="barra barra-peso" style="width:${(p.w / maxE * 100).toFixed(1)}%;background:${col}"></span>`
         + `<span class="barra barra-riesgo" style="width:${((p.pctr || 0) / maxE * 100).toFixed(1)}%"></span>`
-      + `</td>`;
+      + `</td>`
+      + `<td class="num ${liqClase(p.tk)}">${liqTexto(p.tk)}</td>`;
     tr.title = E[p.tk].driver || '';
     cuerpo.appendChild(tr);
   }
+}
+
+/** La punta del CEDEAR, que es lo que se paga por entrar. */
+function liqTexto(tk) {
+  const l = estado.datos.etfs[tk].liquidez;
+  if (!l || !l.spreadPb) return '—';
+  return Math.round(l.spreadPb).toLocaleString('es-AR') + ' pb';
+}
+function liqClase(tk) {
+  const l = estado.datos.etfs[tk].liquidez;
+  if (!l || !l.spreadPb) return 'tenue';
+  return l.spreadPb > 1500 ? 'riesgo-alto' : l.spreadPb < 400 ? 'riesgo-bajo' : '';
 }
 
 function dibujarMezcla(c) {
@@ -793,6 +847,31 @@ function comentario(r, c) {
           + `reparte la varianza entre componentes principales). La diferencia es lo que se paga `
           + `por tener posiciones que, aunque distintas, responden al mismo factor.</p>`
         : ''));
+  }
+
+  // Lo que cuesta armarla de verdad, en el mercado local.
+  const costo = costoDeArmado(c.pesos);
+  if (costo.pb !== null) {
+    const alertas = alertasLiquidez(c.pesos, CART.montoArs);
+    const flojas = costo.cubierto < 0.9
+      ? ` (con puntas para el ${pct0C(costo.cubierto)} de la cartera; el resto no tuvo las dos puntas al cierre)` : '';
+    partes.push(
+      `<p><strong>Cuánto cuesta armarla acá.</strong> Cruzando la punta de cada CEDEAR, `
+      + `entrar cuesta del orden de <strong>${Math.round(costo.pb)} pb</strong> ponderado por `
+      + `peso${flojas}. Es el número que hay que llevar al backtest de más abajo: ahí se ve que, `
+      + `pasados los ~100 pb por punta, el máximo Sharpe deja de convenir frente a comprar SPY `
+      + `y no hacer nada. Con estas puntas, la cartera óptima puede ser óptima y a la vez `
+      + `imposible de sostener.</p>`
+      + (alertas.length
+        ? `<p class="nota">Posiciones difíciles de llevar con una cartera de `
+          + `${(CART.montoArs / 1e6).toFixed(0)} millones de pesos: `
+          + alertas.slice(0, 4).map((a) =>
+              `<strong>${a.tk}</strong> (${a.razon > 50 ? 'casi no opera' :
+                a.razon.toFixed(1) + '× el volumen diario'}${
+                a.spreadPb ? ', punta ' + Math.round(a.spreadPb) + ' pb' : ''})`).join(', ')
+          + `.</p>`
+        : `<p class="nota">Ninguna posición supera el 10% del volumen diario de su CEDEAR `
+          + `para una cartera de ${(CART.montoArs / 1e6).toFixed(0)} millones de pesos.</p>`));
   }
 
   // Lo mismo, pero en las ruedas en que el mercado cayo. Una cartera puede
@@ -906,6 +985,8 @@ function conectarCartera() {
   $('#c-lookback').addEventListener('change', (e) => { CART.lookback = +e.target.value; recalcularCartera(); });
   $('#c-tope').addEventListener('change', (e) => { CART.tope = +e.target.value; recalcularCartera(); });
   $('#c-apal').addEventListener('change', (e) => { CART.excluirApal = e.target.checked; recalcularCartera(); });
+  const monto = $('#c-monto');
+  if (monto) monto.addEventListener('change', (e) => { CART.montoArs = +e.target.value; recalcularCartera(); });
 
   $('#descargar-cartera').addEventListener('click', () => {
     const r = CART.res;

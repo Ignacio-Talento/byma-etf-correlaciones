@@ -17,15 +17,25 @@ const BT = {
   verLW: false,
 };
 
+/* El color va por indice de token CSS, no fijo: en oscuro los azules oscuros
+   de marca desaparecen sobre el fondo navy. */
 const ESTRATEGIAS_BT = [
-  { id: 'maxsharpe',    nombre: 'Máx. Sharpe', color: '#002060', opt: true },
-  { id: 'maxsharpe_lw', nombre: 'Máx. Sharpe + LW', color: '#0F4C68', opt: true, lw: true },
-  { id: 'minvar',       nombre: 'Mín. varianza', color: '#145E81', opt: true },
-  { id: 'minvar_lw',    nombre: 'Mín. var. + LW', color: '#3E8FB0', opt: true, lw: true },
-  { id: 'erc',          nombre: 'Paridad de riesgo', color: '#00B0F0', opt: true },
-  { id: 'equi',         nombre: '1/N', color: '#A7B2C8', opt: true },
-  { id: 'spy',          nombre: 'SPY', color: '#6B7280', opt: false },
+  { id: 'maxsharpe',    nombre: 'Máx. Sharpe', tono: 1, opt: true },
+  { id: 'maxsharpe_lw', nombre: 'Máx. Sharpe + LW', tono: 5, opt: true, lw: true },
+  { id: 'minvar',       nombre: 'Mín. varianza', tono: 3, opt: true },
+  { id: 'minvar_lw',    nombre: 'Mín. var. + LW', tono: 7, opt: true, lw: true },
+  { id: 'erc',          nombre: 'Paridad de riesgo', tono: 2, opt: true },
+  { id: 'equi',         nombre: '1/N', tono: 4, opt: true },
+  { id: 'spy',          nombre: 'SPY', tono: 6, opt: false },
 ];
+
+function tonoSerie(k) {
+  return getComputedStyle(document.documentElement).getPropertyValue('--serie-' + k).trim() || '#002060';
+}
+/** Resuelve el color de cada estrategia contra el tema vigente. */
+function visiblesConColor() {
+  return visibles().map((e) => ({ ...e, color: tonoSerie(e.tono) }));
+}
 
 /** Las variantes con shrinkage se pueden ocultar: son siete curvas y el
     hallazgo no esta ahi. Quien quiera verlas, las prende. */
@@ -133,7 +143,7 @@ function dibujarCurvas(r) {
   });
 
   // Los benchmarks van primero y mas finos: son la referencia, no el foco.
-  const orden = visibles().slice().sort((a, b) => (a.opt === b.opt ? 0 : a.opt ? 1 : -1));
+  const orden = visiblesConColor().slice().sort((a, b) => (a.opt === b.opt ? 0 : a.opt ? 1 : -1));
   const etiquetas = [];
   for (const e of orden) {
     const nav = r.series[e.id].nav;
@@ -180,7 +190,7 @@ function dibujarCurvas(r) {
 function dibujarTablaBT(r) {
   const tb = $('#tabla-bt tbody');
   tb.textContent = '';
-  const filas = visibles().map((e) => ({ e, ...r.series[e.id] }));
+  const filas = visiblesConColor().map((e) => ({ e, ...r.series[e.id] }));
   const mejorSharpe = Math.max(...filas.map((f) => f.met.sharpe));
   for (const f of filas) {
     const tr = document.createElement('tr');
@@ -214,7 +224,7 @@ function dibujarSensibilidad() {
   }
   BT.costoPb = guardado;
 
-  for (const e of visibles()) {
+  for (const e of visiblesConColor()) {
     const tr = document.createElement('tr');
     let html = `<td><span class="serie-punto" style="background:${e.color}"></span>`
              + `<span class="tk">${e.nombre}</span></td>`;
@@ -236,7 +246,7 @@ function dibujarPorAnio(r) {
   const cab = $('#tabla-anios thead tr');
   cuerpo.textContent = '';
   cab.textContent = '';
-  cab.innerHTML = '<th>Año</th>' + visibles().map((e) =>
+  cab.innerHTML = '<th>Año</th>' + visiblesConColor().map((e) =>
     `<th class="num"><span class="serie-punto" style="background:${e.color}"></span>${e.nombre}</th>`).join('');
 
   const anios = [];
@@ -275,7 +285,7 @@ function veredicto(r) {
   const eq = r.series.equi.met.sharpe;
   const spy = r.series.spy.met.sharpe;
   const erc = r.series.erc.met.sharpe;
-  const mejor = visibles().map((e) => ({ e, s: r.series[e.id].met.sharpe }))
+  const mejor = visiblesConColor().map((e) => ({ e, s: r.series[e.id].met.sharpe }))
     .sort((a, b) => b.s - a.s)[0];
   const to = Math.round((r.series.maxsharpe.turnover || 0) * 100);
 

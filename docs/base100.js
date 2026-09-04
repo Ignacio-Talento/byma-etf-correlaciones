@@ -13,8 +13,14 @@
 // Secuencia de data-viz de la marca. Se corta en 6 a proposito: mas lineas
 // sobre el mismo grafico dejan de distinguirse, y la salida no es inventar
 // colores nuevos sino sacar series.
-const COLORES_B100 = ['#002060', '#00B0F0', '#145E81', '#A7B2C8', '#0F4C68', '#6B7280'];
 const MAX_SERIES = 6;
+
+/** La paleta sale del CSS para que el modo oscuro pueda cambiarla: los azules
+    de marca sobre fondo navy tienen contraste 1,03 y la linea desaparece. */
+function coloresB100() {
+  const cs = getComputedStyle(document.documentElement);
+  return [1, 2, 3, 4, 5, 6].map((k) => cs.getPropertyValue('--serie-' + k).trim() || '#002060');
+}
 
 const B100 = {
   sel: ['SPY', 'MERVAL', 'GLD', 'QQQ'],
@@ -62,7 +68,7 @@ function dibujarB100() {
   const fechas = estado.datos.fechas;
 
   const series = B100.sel.map((tk, k) => ({
-    tk, color: COLORES_B100[k % COLORES_B100.length], v: serieBase100(tk, idx),
+    tk, color: coloresB100()[k % 6], v: serieBase100(tk, idx),
   }));
   const datos = series.flatMap((s) => s.v.filter((x) => x !== null));
   if (!datos.length) return;
@@ -191,7 +197,7 @@ function tablaB100() {
   const idx = indicesVigentes();
   const E = estado.datos.etfs;
   const filas = B100.sel.map((tk, k) => ({
-    tk, color: COLORES_B100[k % COLORES_B100.length],
+    tk, color: coloresB100()[k % 6],
     m: metricasB100(serieBase100(tk, idx)),
   })).filter((f) => f.m);
   filas.sort((a, b) => b.m.total - a.m.total);
@@ -215,7 +221,7 @@ function chipsB100() {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'chip chip-serie';
-    b.innerHTML = `<span class="punto" style="background:${COLORES_B100[k % COLORES_B100.length]}"></span>`
+    b.innerHTML = `<span class="punto" style="background:${coloresB100()[k % 6]}"></span>`
       + `${tk}<span class="quitar">&times;</span>`;
     b.title = 'Quitar del gráfico';
     b.addEventListener('click', () => {

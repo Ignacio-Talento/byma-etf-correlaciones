@@ -175,6 +175,31 @@ independientes: las ruedas de caída y las de calma no se solapan). Ahí sólo e
 (68 de 69), los chicos no. Con 76 ruedas de caída alcanza para detectar un efecto
 grande, no uno chico.
 
+## El orden de lectura
+
+El tablero muestra primero el **backtest** y después la cartera, no al revés. La
+cartera optimizada tiene un Sharpe de más de 3 dentro de la muestra; la misma
+estrategia, fuera de muestra, da 0,82 y pierde contra comprar el índice apenas
+entra el costo. Poner la propuesta antes que la evidencia sugeriría lo contrario
+de lo que los datos dicen.
+
+Arriba de la cartera hay un veredicto que cruza las dos cosas: toma el resultado
+fuera de muestra de esa misma estrategia y lo compara con el **costo real de
+armarla**, calculado con las puntas del panel de BYMA.
+
+Se reporta el **costo de quiebre** —a partir de qué costo la estrategia deja de
+superar al índice— y no el Sharpe a un costo puntual. Con 285% de rotación,
+meter una punta de 773 pb en el modelo da un Sharpe de −1,29: correcto dentro del
+modelo, pero describe un escenario que nadie operaría. El punto de quiebre es
+robusto: para máximo Sharpe son **39 pb**, y las puntas de cierre están 20 veces
+más arriba, así que la conclusión no depende de cuánto se angosten intradiario.
+
+Se resuelve por bisección sobre el cálculo real, no con la fórmula lineal: el
+costo se compone en cada rebalanceo y además mueve la volatilidad.
+
+**Y hay un caso que conviene saber:** mínima varianza no le gana al índice ni
+siquiera con costos de cero (0,66 contra 0,67).
+
 ## Lo que agrega el panel de cartera
 
 Sobre la cartera optimizada, cuatro lecturas que el peso y el Sharpe no dan:

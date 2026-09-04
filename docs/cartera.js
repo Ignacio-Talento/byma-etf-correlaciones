@@ -1043,6 +1043,67 @@ function dibujarMetricas(r, c) {
     + `La diferencia es lo que ganó el optimizador mirando el pasado, no lo que se puede esperar hacia adelante.`;
 }
 
+/* Cada perfil corresponde a una estrategia del backtest, salvo el audaz: ese
+   es un punto de la frontera a la derecha de la tangente, que el walk-forward
+   no prueba. Decirlo es mejor que asignarle el resultado de otra. */
+const ESTRATEGIA_DE_PERFIL = { conservador: 'minvar', moderado: 'maxsharpe', audaz: null };
+
+/** Lo que la evidencia dice sobre ESTA estrategia, antes de mostrar la cartera.
+    Usa el costo real de armarla —el que sale de las puntas del panel de BYMA—
+    y no un supuesto: es la unica forma de que los dos paneles hablen entre si. */
+function veredictoPrevio(r, c) {
+  const nodo = $('#veredicto-previo');
+  if (!nodo) return;
+  const estr = ESTRATEGIA_DE_PERFIL[CART.perfil];
+  const costo = costoDeArmado(c.pesos);
+  const proto = typeof protocoloBacktest === 'function' ? protocoloBacktest() : null;
+
+  if (!estr || typeof sharpeNetoDe !== 'function' || !proto) {
+    nodo.innerHTML = `<p><strong>Lo de abajo es la mejor combinación del pasado, no una `
+      + `recomendación.</strong> El perfil audaz es un punto de la frontera que el backtest `
+      + `no prueba; los dos que sí prueba —mínima varianza y máximo Sharpe— quedan por debajo `
+      + `de comprar el índice una vez que se descuenta el costo de operar.</p>`;
+    nodo.className = 'veredicto-previo';
+    return;
+  }
+
+  const pb = costo.pb === null ? null : Math.round(costo.pb);
+  const q = typeof costoDeQuiebre === 'function' ? costoDeQuiebre(estr, 'spy') : null;
+  if (!q) { nodo.innerHTML = ''; return; }
+
+  const quiebre = Math.round(q.pb);
+  const noLlega = q.nuncaSupera || (pb !== null && pb > quiebre);
+  nodo.className = 'veredicto-previo' + (noLlega ? ' alerta' : '');
+
+  const cabeza = `<p class="vp-titulo">Antes de mirar la cartera</p>`
+    + `<p>Esta misma estrategia, probada <strong>fuera de muestra</strong> sobre `
+    + `${proto.rebalanceos} rebalanceos en ${proto.anios.toFixed(1).replace('.', ',')} años, `
+    + `dio un Sharpe de <strong>${num2(q.sharpeBruto)}</strong> sin costos`;
+
+  let cuerpo;
+  if (q.nuncaSupera) {
+    cuerpo = `${cabeza}: por debajo del <strong>${num2(q.sharpeRef)}</strong> de comprar SPY y `
+      + `no hacer nada. Es decir que <strong>no conviene ni siquiera con costos de cero</strong>, `
+      + `y encima rota ${Math.round(q.turnover * 100)}% al año.</p>`;
+  } else {
+    cuerpo = `${cabeza}, contra ${num2(q.sharpeRef)} de comprar SPY y no hacer nada. Pero rota `
+      + `<strong>${Math.round(q.turnover * 100)}% al año</strong>, así que deja de superarlo `
+      + `pasados los <strong>${quiebre} pb por punta</strong>.</p>`
+      + (pb === null ? ''
+        : `<p>Las puntas de cierre de los CEDEARs de esta cartera promedian `
+          + `<strong>${pb} pb</strong> ponderado por peso. Son más anchas que las intradiarias, `
+          + `pero ${noLlega
+            ? `hay <strong>${(pb / Math.max(quiebre, 1)).toFixed(0)}×</strong> de distancia hasta `
+              + `el punto de quiebre: la conclusión no depende de cuánto se angosten.`
+            : `aun así quedan por debajo del punto de quiebre.`}</p>`);
+  }
+
+  nodo.innerHTML = cuerpo
+    + `<p class="vp-nota">Los números de abajo son <em>dentro</em> de la muestra: describen la `
+    + `mejor combinación del período que ya pasó. Sirven para entender qué se movió con qué, `
+    + `no como expectativa.</p>`;
+}
+
 function recalcularCartera() {
   const r = calcularCartera();
   CART.res = r;
@@ -1050,6 +1111,7 @@ function recalcularCartera() {
   if (!r) { err.hidden = false; return; }
   err.hidden = true;
   const c = r.carteras[CART.perfil];
+  veredictoPrevio(r, c);
   dibujarMetricas(r, c);
   dibujarPesos(c);
   dibujarMezcla(c);

@@ -351,5 +351,54 @@ window.iniciarBacktest = async function () {
   recalcularBT();
 };
 
+/** Sharpe fuera de muestra de una estrategia al costo que se le pida.
+    Lo consume el panel de cartera: sin esto, la cartera propone y el backtest
+    juzga en otra parte de la pagina, y el lector tiene que unir los dos. */
+window.sharpeNetoDe = function (estrategia, costoPb) {
+  if (!BT.datos || !BT.datos.nav[estrategia]) return null;
+  const guardado = BT.costoPb;
+  BT.costoPb = costoPb;
+  const m = metricasNav(navNeta(estrategia), BT.datos.metricas.equi.rf);
+  BT.costoPb = guardado;
+  return { ...m, turnover: BT.datos.turnoverAnual[estrategia] };
+};
+
+/** A partir de que costo por punta la estrategia deja de superar a un
+    referente. Es mucho mas robusto que evaluar el Sharpe a un costo puntual:
+    con rotaciones altas, meter una punta ancha en el modelo lineal da numeros
+    absurdos (Sharpe muy negativo) que describen un escenario que nadie
+    operaria. El punto de quiebre no depende de esa extrapolacion. */
+window.costoDeQuiebre = function (estrategia, referente) {
+  if (!BT.datos) return null;
+  const ref = window.sharpeNetoDe(referente || 'spy', 0);
+  const cero = window.sharpeNetoDe(estrategia, 0);
+  if (!ref || !cero) return null;
+
+  // Si ni siquiera sin costos le gana al referente, no hay punto de quiebre
+  // que buscar: la respuesta es que nunca conviene.
+  if (cero.sharpe <= ref.sharpe) {
+    return { nuncaSupera: true, sharpeBruto: cero.sharpe, sharpeRef: ref.sharpe,
+             turnover: cero.turnover, pb: 0 };
+  }
+
+  // Biseccion sobre el calculo REAL, no sobre una aproximacion lineal: el
+  // costo se compone en cada rebalanceo y ademas cambia la volatilidad, asi
+  // que restar turnover x 2 x costo del CAGR no da exactamente lo mismo.
+  let lo = 0, hi = 1000;
+  if (window.sharpeNetoDe(estrategia, hi).sharpe > ref.sharpe) {
+    return { pb: hi, superaSiempre: true, sharpeBruto: cero.sharpe,
+             sharpeRef: ref.sharpe, turnover: cero.turnover };
+  }
+  for (let k = 0; k < 40; k++) {
+    const mid = (lo + hi) / 2;
+    if (window.sharpeNetoDe(estrategia, mid).sharpe > ref.sharpe) lo = mid; else hi = mid;
+  }
+  return { pb: (lo + hi) / 2, sharpeBruto: cero.sharpe, sharpeRef: ref.sharpe,
+           turnover: cero.turnover };
+};
+
+/** Cuantos anios y rebalanceos hay detras de ese numero. */
+window.protocoloBacktest = function () { return BT.datos ? BT.datos.protocolo : null; };
+
 window.redibujarBacktest = function () { if (BT.datos) recalcularBT(); };
 window.alHaberDatos(window.iniciarBacktest);

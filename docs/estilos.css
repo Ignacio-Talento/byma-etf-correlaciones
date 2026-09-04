@@ -627,3 +627,21 @@ ul.drivers li:last-child { border-bottom: 0; }
   background: rgba(0, 176, 240, .08); color: var(--tinta-2);
 }
 .titular-crisis strong { color: var(--tinta); }
+
+/* ============================================= peso contra riesgo aportado */
+
+.barra-cel { position: relative; }
+.barra-peso { display: block; height: 7px; border-radius: 2px; }
+.barra-riesgo {
+  display: block; height: 3px; margin-top: 2px; border-radius: 2px;
+  background: var(--label-gray); opacity: .8;
+}
+:root[data-theme="dark"] .barra-riesgo,
+:root:not([data-theme="light"]) .barra-riesgo { background: var(--steel-gray); }
+
+#tabla-pesos .riesgo-alto { color: #C0392B; font-weight: 700; }
+#tabla-pesos .riesgo-bajo { color: #1B9E5A; font-weight: 700; }
+:root[data-theme="dark"] #tabla-pesos .riesgo-alto,
+:root:not([data-theme="light"]) #tabla-pesos .riesgo-alto { color: #df6959; }
+:root[data-theme="dark"] #tabla-pesos .riesgo-bajo,
+:root:not([data-theme="light"]) #tabla-pesos .riesgo-bajo { color: #45c98a; }

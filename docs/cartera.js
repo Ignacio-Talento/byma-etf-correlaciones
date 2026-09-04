@@ -213,6 +213,95 @@ function frontera(mu, cov, tope, puntos = 46) {
   return efi;
 }
 
+/* ------------------------------------------------- riesgo y sus fuentes --- */
+
+/** Descomposicion espectral de una matriz simetrica por rotaciones de Jacobi.
+    Se necesita para las "apuestas efectivas": hay que mirar los componentes
+    principales del riesgo, no los activos, porque dos posiciones distintas
+    pueden ser la misma apuesta. Solo corre sobre las posiciones con peso
+    (una decena), asi que el costo cubico no molesta. */
+function jacobiEigen(M0, iters = 100) {
+  const n = M0.length;
+  const A = M0.map((f) => f.slice());
+  let V = Array.from({ length: n }, (_, i) =>
+    Array.from({ length: n }, (_, j) => (i === j ? 1 : 0)));
+
+  for (let barrido = 0; barrido < iters; barrido++) {
+    let fuera = 0;
+    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) fuera += A[i][j] * A[i][j];
+    if (fuera < 1e-24) break;
+    for (let p = 0; p < n - 1; p++) {
+      for (let q = p + 1; q < n; q++) {
+        if (Math.abs(A[p][q]) < 1e-18) continue;
+        const theta = (A[q][q] - A[p][p]) / (2 * A[p][q]);
+        const t = Math.sign(theta || 1) / (Math.abs(theta) + Math.sqrt(theta * theta + 1));
+        const c = 1 / Math.sqrt(t * t + 1), s = t * c;
+        for (let k = 0; k < n; k++) {
+          const akp = A[k][p], akq = A[k][q];
+          A[k][p] = c * akp - s * akq;
+          A[k][q] = s * akp + c * akq;
+        }
+        for (let k = 0; k < n; k++) {
+          const apk = A[p][k], aqk = A[q][k];
+          A[p][k] = c * apk - s * aqk;
+          A[q][k] = s * apk + c * aqk;
+        }
+        for (let k = 0; k < n; k++) {
+          const vkp = V[k][p], vkq = V[k][q];
+          V[k][p] = c * vkp - s * vkq;
+          V[k][q] = s * vkp + c * vkq;
+        }
+      }
+    }
+  }
+  const valores = A.map((f, i) => f[i]);
+  const orden = valores.map((v, i) => i).sort((a, b) => valores[b] - valores[a]);
+  return {
+    valores: orden.map((i) => valores[i]),
+    vectores: orden.map((i) => V.map((f) => f[i])),   // vectores[k] = k-esimo autovector
+  };
+}
+
+/** Contribucion de cada posicion al riesgo total.
+    Un 15% en un ETF de 30% de volatilidad no es lo mismo que un 15% en uno de
+    12%: el peso dice cuanta plata hay puesta, no cuanto riesgo aporta. */
+function contribucionAlRiesgo(pesos, cov) {
+  const idx = pesos.map((p) => p.i);
+  const w = pesos.map((p) => p.w);
+  const sub = idx.map((i) => idx.map((j) => cov[i][j]));
+  const cw = matVec(sub, w);
+  const varP = dot(w, cw);
+  const sigma = Math.sqrt(Math.max(varP, 1e-18));
+  return pesos.map((p, k) => ({
+    ...p,
+    mctr: cw[k] / sigma,              // contribucion marginal
+    ctr: w[k] * cw[k] / sigma,        // contribucion absoluta (suman sigma)
+    pctr: varP > 0 ? w[k] * cw[k] / varP : 0,   // participacion (suman 1)
+  }));
+}
+
+/** Apuestas efectivas de Meucci: entropia de como se reparte la varianza
+    entre componentes principales. Es lo que 1/HHI sobre pesos no puede ver:
+    diez posiciones que son la misma apuesta cuentan como una. */
+function apuestasEfectivas(pesos, cov) {
+  const idx = pesos.map((p) => p.i);
+  const w = pesos.map((p) => p.w);
+  const sub = idx.map((i) => idx.map((j) => cov[i][j]));
+  const { valores, vectores } = jacobiEigen(sub);
+  const varP = dot(w, matVec(sub, w));
+  if (varP <= 0) return null;
+  let ent = 0, suma = 0;
+  const reparto = [];
+  for (let k = 0; k < valores.length; k++) {
+    const proy = dot(vectores[k], w);
+    const p = Math.max(0, proy * proy * valores[k] / varP);
+    reparto.push(p);
+    suma += p;
+  }
+  for (const p of reparto) if (p > 1e-12) ent -= (p / suma) * Math.log(p / suma);
+  return { n: Math.exp(ent), reparto: reparto.map((p) => p / suma) };
+}
+
 /* ------------------------------------------------------------ metricas --- */
 
 function anualizar(retDiario, varDiaria, rfAnual) {
@@ -239,6 +328,7 @@ function correlacionMedia(w, corr) {
 const posicionesEfectivas = (w) => 1 / w.reduce((a, x) => a + x * x, 0);
 
 function componer(w, tickers, st) {
+  // (contribucion al riesgo y apuestas efectivas se agregan mas abajo)
   const m = anualizar(dot(st.mu, w), cuadratica(st.cov, w), st.rfAnual);
   const pesos = tickers.map((tk, i) => ({ tk, w: w[i], i }))
     .filter((p) => p.w > 0.002)
@@ -248,10 +338,13 @@ function componer(w, tickers, st) {
     const c = estado.datos.etfs[p.tk].categoria;
     porCat[c] = (porCat[c] || 0) + p.w;
   }
+  const conRiesgo = contribucionAlRiesgo(pesos, st.cov);
+  const apuestas = apuestasEfectivas(pesos, st.cov);
   return {
-    w, ...m, pesos,
+    w, ...m, pesos: conRiesgo,
     corrMedia: correlacionMedia(w, st.corr),
     nEfectivo: posicionesEfectivas(w),
+    apuestas,
     porCategoria: Object.entries(porCat).sort((a, b) => b[1] - a[1]),
   };
 }
@@ -583,15 +676,21 @@ function dibujarPesos(c) {
   const cuerpo = $('#tabla-pesos tbody');
   cuerpo.textContent = '';
   const E = estado.datos.etfs;
-  const maxW = c.pesos.length ? c.pesos[0].w : 1;
+  const maxE = Math.max(...c.pesos.map((p) => Math.max(p.w, p.pctr || 0)));
   const col = colorPerfil(CART.perfil);
   for (const p of c.pesos) {
     const tr = document.createElement('tr');
+    const brecha = (p.pctr || 0) - p.w;
+    const clase = brecha > 0.04 ? 'riesgo-alto' : brecha < -0.04 ? 'riesgo-bajo' : '';
     tr.innerHTML =
       `<td><span class="tk">${p.tk}</span> <span class="tk-desc">${E[p.tk].nombre}</span></td>`
       + `<td class="cat-cel">${E[p.tk].categoria}</td>`
       + `<td class="num">${pctC(p.w)}</td>`
-      + `<td class="barra-cel"><span class="barra" style="width:${(p.w / maxW * 100).toFixed(1)}%;background:${col}"></span></td>`;
+      + `<td class="num ${clase}">${pctC(p.pctr || 0)}</td>`
+      + `<td class="barra-cel">`
+        + `<span class="barra barra-peso" style="width:${(p.w / maxE * 100).toFixed(1)}%;background:${col}"></span>`
+        + `<span class="barra barra-riesgo" style="width:${((p.pctr || 0) / maxE * 100).toFixed(1)}%"></span>`
+      + `</td>`;
     tr.title = E[p.tk].driver || '';
     cuerpo.appendChild(tr);
   }
@@ -674,6 +773,28 @@ function comentario(r, c) {
       ? `<p class="nota">Las otras ${c.pesos.length - top.length} posiciones tienen su driver en el tooltip de la tabla.</p>`
       : ''));
 
+  // Peso y riesgo no son lo mismo, y la brecha suele sorprender.
+  const conCtr = c.pesos.filter((p) => p.pctr !== undefined);
+  if (conCtr.length) {
+    const masRiesgo = conCtr.slice().sort((a, b) => (b.pctr - b.w) - (a.pctr - a.w))[0];
+    const menosRiesgo = conCtr.slice().sort((a, b) => (a.pctr - a.w) - (b.pctr - b.w))[0];
+    const ap = c.apuestas;
+    partes.push(
+      `<p><strong>Cuánto pesa y cuánto arriesga no es lo mismo.</strong> `
+      + `<strong>${masRiesgo.tk}</strong> pesa ${pctC(masRiesgo.w)} y aporta `
+      + `<strong>${pctC(masRiesgo.pctr)}</strong> del riesgo; <strong>${menosRiesgo.tk}</strong> `
+      + `pesa ${pctC(menosRiesgo.w)} y aporta apenas ${pctC(menosRiesgo.pctr)}. `
+      + `Un peso alto en un activo tranquilo no es una posición grande en términos de riesgo, `
+      + `que es la unidad en la que conviene pensar una cartera.</p>`
+      + (ap
+        ? `<p>Por eso las dos medidas de diversificación no coinciden: por peso la cartera `
+          + `equivale a <strong>${c.nEfectivo.toFixed(1)} posiciones</strong>, pero por riesgo son `
+          + `<strong>${ap.n.toFixed(1)} apuestas independientes</strong> (entropía de cómo se `
+          + `reparte la varianza entre componentes principales). La diferencia es lo que se paga `
+          + `por tener posiciones que, aunque distintas, responden al mismo factor.</p>`
+        : ''));
+  }
+
   // Lo mismo, pero en las ruedas en que el mercado cayo. Una cartera puede
   // estar muy descorrelacionada en promedio y juntarse justo en la caida.
   const idxEstres = ruedasDeEstres().indices;
@@ -732,6 +853,7 @@ function dibujarMetricas(r, c) {
   $('#m-sharpe').textContent = num2(c.sharpe);
   $('#m-corr').textContent = num2(c.corrMedia);
   $('#m-npos').textContent = c.nEfectivo.toFixed(1);
+  $('#m-apuestas').textContent = c.apuestas ? c.apuestas.n.toFixed(1) : '—';
   $('#m-sharpe').style.color = colorPerfil(CART.perfil);
 
   const eq = r.equi;

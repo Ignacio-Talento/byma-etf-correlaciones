@@ -298,6 +298,11 @@
       "nombre": "iShares Bonos Municipales EE.UU.",
       "categoria": "Renta fija",
       "driver": "Bonos municipales de EE.UU. Lo mueven las tasas largas y el tratamiento impositivo, con poco riesgo de credito. Es de lo mas tranquilo del panel (~3% de volatilidad) y de lo menos atado a las acciones."
+    },
+    "VB": {
+      "nombre": "Vanguard Small-Cap",
+      "categoria": "Indice amplio EE.UU.",
+      "driver": "Small y mid caps de EE.UU.: ciclo domestico y costo del credito, como el IWM. Ojo con la redundancia — correlaciona 0,98 con IJH y 0,96 con IWM, asi que sostener los tres es tener tres veces la misma exposicion. Sirve para elegir emisor o costo, no para diversificar."
     }
   }
 }

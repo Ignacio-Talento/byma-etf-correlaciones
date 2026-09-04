@@ -9,7 +9,7 @@ Se actualiza solo, todos los días, con el cierre de mercado.
 
 ## Qué muestra
 
-Los **57 ETFs** que cotizan en BYMA como CEDEAR, más el **Merval en dólares** como
+Los **58 ETFs** que cotizan en BYMA como CEDEAR, más el **Merval en dólares** como
 referencia, correlacionados entre sí por sus retornos diarios. En el tablero se puede:
 
 - cambiar la **ventana** (1 mes a 3 años) y ver cómo cambia la foto;
@@ -268,7 +268,7 @@ para que el cero lea "nada".
 ## Cómo está armado
 
 ```
-universo.json                 los 58 instrumentos: nombre, categoría y driver (se edita a mano)
+universo.json                 los 59 instrumentos: nombre, categoría y driver (se edita a mano)
 data/backtest_universo.json   huella del universo con que se calculó la caché
 scripts/fuentes.py            acceso a BYMA, Yahoo y el CCL
 scripts/actualizar.py         baja, acumula y publica el dataset

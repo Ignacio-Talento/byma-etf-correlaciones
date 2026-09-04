@@ -2,11 +2,24 @@ name: Actualizar cierre diario
 
 on:
   schedule:
-    # 22:30 UTC = 19:30 ART, despues del cierre de EE.UU. y con el CCL del dia.
-    - cron: "30 22 * * 1-5"
-    # Segunda pasada de red: los cron de Actions llegan tarde o no disparan.
-    # El script es idempotente, correr dos veces no hace dano.
-    - cron: "0 6 * * 2-6"
+    # Tres pasadas, no por necesidad sino por desconfianza: los cron de Actions
+    # llegan tarde o directamente no disparan. El 2026-09-04 la primera no salio
+    # y el cierre quedo sin publicar hasta que se lanzo a mano. El script es
+    # idempotente en el dato: si el cierre ya esta, la pasada lo reescribe
+    # identico. Ojo que igual commitea, porque dataset.json lleva un campo
+    # "generado" con la hora al segundo y eso solo ya alcanza para que git vea
+    # un cambio. O sea: son ~3 commits por dia, dos de ellos sin dato nuevo.
+    #
+    # Los minutos son deliberadamente salteados. GitHub encola los cron de toda
+    # la plataforma y los que caen en punto o a la media son los mas cargados,
+    # que es justo donde se acumula la demora.
+    #
+    # 22:37 UTC = 19:37 ART, despues del cierre de EE.UU. y con el CCL del dia.
+    - cron: "37 22 * * 1-5"
+    # 01:13 UTC = 22:13 ART. Cubre el hueco de la noche.
+    - cron: "13 1 * * 2-6"
+    # 06:23 UTC = 03:23 ART. Ultima red antes de que arranque el dia.
+    - cron: "23 6 * * 2-6"
   workflow_dispatch:
 
 permissions:

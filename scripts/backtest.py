@@ -48,6 +48,7 @@ UNIVERSO = os.path.join(RAIZ, "universo.json")
 CSV_PRECIOS = os.path.join(RAIZ, "data", "precios.csv")
 CSV_TASA = os.path.join(RAIZ, "data", "tasa_libre_riesgo.csv")
 CSV_PESOS = os.path.join(RAIZ, "data", "backtest_pesos.csv")
+JSON_UNIVERSO_BT = os.path.join(RAIZ, "data", "backtest_universo.json")
 SALIDA = os.path.join(RAIZ, "docs", "data", "backtest.json")
 
 LF = "\n"
@@ -311,6 +312,19 @@ def opt_erc(cov, tope, iters=800):
 
 # ----------------------------------------------------------------- cache ---
 
+def universo_cacheado():
+    """El universo con el que se calculo la cache guardada."""
+    try:
+        return json.load(open(JSON_UNIVERSO_BT, encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def guardar_universo(tickers):
+    with open(JSON_UNIVERSO_BT, "w", encoding="utf-8") as fh:
+        json.dump(sorted(tickers), fh, indent=0)
+
+
 def leer_pesos():
     st = {}
     if os.path.exists(CSV_PESOS):
@@ -405,7 +419,26 @@ def main():
     rebal = [f for f in fines_de_mes(fechas) if idx[f] >= LOOKBACK]
     log("Rebalanceos posibles: %d (%s -> %s)" % (len(rebal), rebal[0], rebal[-1]))
 
-    cache = {} if args.rehacer else leer_pesos()
+    # Si el universo cambio, la cache quedo mal: un ETF que se agrega hoy y ya
+    # tenia historia habria entrado en rebalanceos viejos, y esos pesos se
+    # calcularon sin el. Es un error que no se nota mirando la salida, asi que
+    # se detecta y se rehace solo.
+    previo = universo_cacheado()
+    rehacer = args.rehacer
+    if previo is None and os.path.exists(CSV_PESOS):
+        # Hay cache pero no sabemos con que universo se construyo. Estampar la
+        # huella actual sobre ella la daria por buena sin haberla verificado,
+        # que es peor que no tener la proteccion: se rehace.
+        log("Cache sin huella de universo: no se puede verificar, se recalcula")
+        rehacer = True
+    elif previo is not None and previo != sorted(tickers):
+        agregados = sorted(set(tickers) - set(previo))
+        quitados = sorted(set(previo) - set(tickers))
+        log("El universo cambio (+%s / -%s): se recalculan todos los rebalanceos"
+            % (", ".join(agregados) or "nada", ", ".join(quitados) or "nada"))
+        rehacer = True
+
+    cache = {} if rehacer else leer_pesos()
     nuevos = 0
 
     for fecha in rebal:
@@ -446,6 +479,9 @@ def main():
 
     if nuevos:
         escribir_pesos(cache)
+    # La huella se guarda siempre: si no hubo nada nuevo, es porque la cache ya
+    # corresponde a este universo.
+    guardar_universo(tickers)
     log("Rebalanceos calculados ahora: %d | en cache: %d" % (nuevos, len(cache)))
 
     # --- recorrer el tiempo aplicando los pesos -----------------------------
@@ -461,6 +497,7 @@ def main():
 
     pesos_act = {e: {} for e in ESTRATEGIAS_OPT}
     prox = 0
+    sin_dato = [0]     # cuantas veces una posicion no tuvo precio ese dia
 
     for k in range(1, len(fechas_bt)):
         f_ayer, f_hoy = fechas_bt[k - 1], fechas_bt[k]
@@ -488,8 +525,15 @@ def main():
             for tk, wi in w.items():
                 r = rets[tk][t_hoy]
                 if r is None:
+                    # Sin dato no hay movimiento observado: la posicion se
+                    # mantiene quieta. Sumarla al denominador sin sumarla al
+                    # numerador equivaldria a darla por perdida ese dia, y con
+                    # un papel de calendario distinto —los ETFs de bonos cierran
+                    # un dia antes— eso fabrica caidas que nunca ocurrieron.
+                    bruto += wi
                     nuevo_w[tk] = wi
                     peso_valido += wi
+                    sin_dato[0] += 1
                     continue
                 cr = math.exp(r)
                 bruto += wi * cr
@@ -552,6 +596,8 @@ def main():
     with open(SALIDA, "w", encoding="utf-8") as fh:
         json.dump(salida, fh, ensure_ascii=False, separators=(",", ":"))
 
+    if sin_dato[0]:
+        log("Posiciones sin precio en su dia (se mantuvieron quietas): %d" % sin_dato[0])
     log("")
     log("=== WALK-FORWARD  %s -> %s  (%d rebalanceos, %.1f anios) ==="
         % (fechas_bt[0], fechas_bt[-1], len(aplicables), met["equi"]["anios"]))

@@ -9,7 +9,7 @@ Se actualiza solo, todos los días, con el cierre de mercado.
 
 ## Qué muestra
 
-Los **55 ETFs** que cotizan en BYMA como CEDEAR, más el **Merval en dólares** como
+Los **57 ETFs** que cotizan en BYMA como CEDEAR, más el **Merval en dólares** como
 referencia, correlacionados entre sí por sus retornos diarios. En el tablero se puede:
 
 - cambiar la **ventana** (1 mes a 3 años) y ver cómo cambia la foto;
@@ -23,6 +23,18 @@ referencia, correlacionados entre sí por sus retornos diarios. En el tablero se
   eficiente de Markowitz;
 - y ver, en el **backtest walk-forward**, qué habría rendido cada estrategia de
   verdad — con el costo de operar como control en vivo.
+
+### Renta fija en el panel
+
+JPMB (deuda soberana emergente en dólares) y MUB (municipales de EE.UU.) son la
+única clase de activo del panel con volatilidad de un dígito bajo: **5,4% y 3,0%**
+contra 15-25% del equity. Agregarlos mejoró el perfil de riesgo de todo:
+mínima varianza pasó de 12,8% a **9,9%** de volatilidad y de −26,6% a **−22,6%**
+de caída máxima; máximo Sharpe, de 19,0% a 16,6% y de −28,2% a −24,7%, con el
+mismo Sharpe.
+
+Sumarlos también destapó dos bugs que estaban latentes porque hasta entonces todo
+el universo compartía el mismo calendario — ver el historial de commits.
 
 ### El Merval en dólares
 
@@ -168,10 +180,10 @@ comparan máximo Sharpe, mínima varianza, paridad de riesgo, 1/N y comprar SPY.
 
 | Costo por punta | 0 pb | 20 pb | 50 pb | 100 pb | 200 pb |
 |---|---|---|---|---|---|
-| Máx. Sharpe (rota 294%/año) | **0,82** | **0,75** | 0,64 | 0,47 | 0,13 |
-| Mín. varianza (115%) | 0,70 | 0,66 | 0,60 | 0,50 | 0,31 |
-| Paridad de riesgo (48%) | 0,64 | 0,63 | 0,61 | 0,58 | 0,52 |
-| 1/N (26%) | 0,60 | 0,60 | 0,59 | 0,58 | 0,55 |
+| Máx. Sharpe (rota 285%/año) | **0,82** | **0,76** | 0,65 | 0,48 | 0,14 |
+| Mín. varianza (93%) | 0,66 | 0,62 | 0,56 | 0,47 | 0,28 |
+| Paridad de riesgo (54%) | 0,57 | 0,56 | 0,53 | 0,50 | 0,43 |
+| 1/N (26%) | 0,60 | 0,59 | 0,58 | 0,57 | 0,54 |
 | SPY (no rota) | 0,67 | 0,67 | **0,67** | **0,67** | **0,67** |
 
 Sin fricción el máximo Sharpe gana con comodidad. Pasando los ~50 pb por punta
@@ -200,8 +212,8 @@ Suena decisivo. No lo es:
 | | sin LW | con LW |
 |---|---|---|
 | Máx. Sharpe | 0,82 | 0,83 |
-| Mín. varianza | 0,70 | 0,71 |
-| Rotación de mín. varianza | 115% | 104% |
+| Mín. varianza | 0,66 | 0,66 |
+| Rotación de mín. varianza | 93% | 83% |
 
 El aporte al Sharpe es marginal. Donde sí sirve es en la **rotación**, y dado
 cuánto pesa el costo, esa es la parte que termina valiendo algo. La intensidad de
@@ -256,7 +268,8 @@ para que el cero lea "nada".
 ## Cómo está armado
 
 ```
-universo.json                 los 56 instrumentos: nombre, categoría y driver (se edita a mano)
+universo.json                 los 58 instrumentos: nombre, categoría y driver (se edita a mano)
+data/backtest_universo.json   huella del universo con que se calculó la caché
 scripts/fuentes.py            acceso a BYMA, Yahoo y el CCL
 scripts/actualizar.py         baja, acumula y publica el dataset
 data/precios.csv              historia acumulada de cierres (el log de git es la auditoría)

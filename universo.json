@@ -288,6 +288,16 @@
       "simboloYahoo": "^MERV",
       "enPesos": true,
       "driver": "Las acciones argentinas medidas en dolares. Sus drivers son locales —riesgo pais, politica, flujos hacia el mercado domestico— y por eso suele moverse por su cuenta respecto del panel global. No es un ETF y no se puede comprar: entra al mapa de correlaciones como referencia, no a la cartera."
+    },
+    "JPMB": {
+      "nombre": "JPMorgan Deuda Soberana Emergente USD",
+      "categoria": "Renta fija",
+      "driver": "Deuda soberana de emergentes en dolares. Es riesgo de credito antes que de tasa: se mueve con el apetito de riesgo global —correlaciona ~0,67 con el S&P— y con el spread de emergentes. Volatilidad de ~5%, un orden menos que el equity."
+    },
+    "MUB": {
+      "nombre": "iShares Bonos Municipales EE.UU.",
+      "categoria": "Renta fija",
+      "driver": "Bonos municipales de EE.UU. Lo mueven las tasas largas y el tratamiento impositivo, con poco riesgo de credito. Es de lo mas tranquilo del panel (~3% de volatilidad) y de lo menos atado a las acciones."
     }
   }
 }

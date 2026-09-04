@@ -297,7 +297,7 @@ function ordenPorSimilitud(tickers, rho) {
 function categoriasOrdenadas() {
   const orden = ['Indice amplio EE.UU.', 'Factor / Estilo', 'Sectorial EE.UU.', 'Tematico',
                  'Internacional', 'Commodities y metales', 'Cripto', 'Apalancado / Inverso',
-                 'Indice local'];
+                 'Renta fija', 'Indice local'];
   const presentes = new Set(Object.values(estado.datos.etfs).map((e) => e.categoria));
   const out = orden.filter((c) => presentes.has(c));
   for (const c of presentes) if (!out.includes(c)) out.push(c);

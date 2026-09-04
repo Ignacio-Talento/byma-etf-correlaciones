@@ -9,8 +9,8 @@ Se actualiza solo, todos los días, con el cierre de mercado.
 
 ## Qué muestra
 
-Los **54 ETFs** que cotizan en BYMA como CEDEAR, correlacionados entre sí por sus
-retornos diarios. En el tablero se puede:
+Los **55 ETFs** que cotizan en BYMA como CEDEAR, más el **Merval en dólares** como
+referencia, correlacionados entre sí por sus retornos diarios. En el tablero se puede:
 
 - cambiar la **ventana** (1 mes a 3 años) y ver cómo cambia la foto;
 - pasar de **dólares a pesos**, que le suma el efecto del CCL;
@@ -23,6 +23,21 @@ retornos diarios. En el tablero se puede:
   eficiente de Markowitz;
 - y ver, en el **backtest walk-forward**, qué habría rendido cada estrategia de
   verdad — con el costo de operar como control en vivo.
+
+### El Merval en dólares
+
+Se toma `^MERV` (el índice en pesos) y se divide por el CCL del día, y esa serie en
+dólares se guarda como cualquier otra. Así la vista en pesos lo recompone sola
+sumándole de vuelta el CCL, sin ningún caso especial aguas abajo.
+
+**No es un ETF y no se puede comprar**, así que entra al mapa de correlaciones como
+referencia pero queda afuera de la cartera y del backtest: proponer un índice en una
+cartera sería proponer algo que no existe como instrumento.
+
+Vale la pena porque es lo más descorrelacionado del panel: contra las últimas 252
+ruedas correlaciona **+0,26 con el S&P 500**, +0,30 con Brasil y +0,04 con el oro,
+con una volatilidad de 52,9%. El clustering lo ubica solo, entre las acciones
+latinoamericanas y los activos de riesgo alto.
 
 ## Decisiones que vale la pena conocer
 
@@ -241,7 +256,7 @@ para que el cero lea "nada".
 ## Cómo está armado
 
 ```
-universo.json                 los 54 ETFs: nombre, categoría y driver (se edita a mano)
+universo.json                 los 56 instrumentos: nombre, categoría y driver (se edita a mano)
 scripts/fuentes.py            acceso a BYMA, Yahoo y el CCL
 scripts/actualizar.py         baja, acumula y publica el dataset
 data/precios.csv              historia acumulada de cierres (el log de git es la auditoría)

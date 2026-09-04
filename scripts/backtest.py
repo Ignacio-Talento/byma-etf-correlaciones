@@ -379,8 +379,12 @@ def main():
     # Los apalancados e inversos quedan fuera: su retorno depende del camino
     # (se reapalancan a diario) y meterlos en un backtest de compra y
     # mantenimiento mensual daria un numero que no significa nada.
+    # Los indices quedan fuera: no son instrumentos, no se pueden comprar.
+    # Los apalancados e inversos tambien: su retorno depende del camino (se
+    # reapalancan a diario) y en un backtest mensual daria un numero sin sentido.
     tickers = sorted(tk for tk, m in universo.items()
-                     if m["categoria"] != "Apalancado / Inverso")
+                     if m["categoria"] != "Apalancado / Inverso"
+                     and m.get("tipo") != "indice")
 
     precios = cargar_precios()
     tasa = cargar_tasa()

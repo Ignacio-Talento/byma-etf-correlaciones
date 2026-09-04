@@ -222,6 +222,13 @@ def resumen_liquidez(filas, tickers):
     return out, len(fechas)
 
 
+def ccl_en(fecha, ccl_ordenado):
+    """CCL vigente en esa fecha, arrastrando el ultimo dato anterior."""
+    import bisect
+    i = bisect.bisect_right(ccl_ordenado[0], fecha) - 1
+    return ccl_ordenado[1][i] if i >= 0 else None
+
+
 def detectar_etfs(simbolos):
     """Busca ETFs entre los simbolos del panel que todavia no conocemos.
 
@@ -281,7 +288,13 @@ def main():
 
     universo = json.load(open(UNIVERSO, encoding="utf-8"))["etfs"]
     tickers = sorted(universo)
-    log("Universo: %d ETFs" % len(tickers))
+
+    def es_indice(tk):
+        return universo[tk].get("tipo") == "indice"
+
+    indices = [tk for tk in tickers if es_indice(tk)]
+    log("Universo: %d instrumentos (%d ETFs, %d indices)"
+        % (len(tickers), len(tickers) - len(indices), len(indices)))
 
     precios = leer_csv_precios()
     ccl = leer_csv_ccl()
@@ -296,8 +309,10 @@ def main():
             especies, origen = fuentes.especies_byma()
             log("Panel BYMA (%s): %d especies" % (origen, len(especies)))
             for tk in tickers:
-                en_byma[tk] = tk in especies
-            faltan = [tk for tk in tickers if not en_byma[tk]]
+                # Un indice no cotiza como CEDEAR: preguntarle al panel de
+                # BYMA si esta seria pedirle algo que no puede contestar.
+                en_byma[tk] = None if es_indice(tk) else (tk in especies)
+            faltan = [tk for tk in tickers if en_byma[tk] is False]
             if faltan:
                 avisos.append("No aparecen hoy en el panel de BYMA: %s"
                               % ", ".join(faltan))
@@ -309,13 +324,35 @@ def main():
         except Exception as e:
             avisos.append("No se pudo validar el panel de BYMA: %s" % e)
 
-        # 2. Precios en EE.UU.
+        # 2. CCL primero: hace falta para pasar a dolares las series en pesos
+        try:
+            ccl.update(dict(fuentes.serie_ccl()))
+        except Exception as e:
+            avisos.append("No se pudo actualizar el CCL: %s" % e)
+
+        # 3. Precios
         fallaron = []
+        ccl_ord = (sorted(ccl), [ccl[f] for f in sorted(ccl)]) if ccl else ([], [])
         for i, tk in enumerate(tickers, 1):
             try:
-                serie = fuentes.serie_yahoo(tk, args.rango)
+                simbolo = universo[tk].get("simboloYahoo", tk)
+                serie = fuentes.serie_yahoo(simbolo, args.rango)
+                if universo[tk].get("enPesos"):
+                    # Se guarda ya pasado a dolares por el CCL del dia: asi el
+                    # resto del pipeline lo trata igual que a cualquier otra
+                    # serie, y la vista en pesos lo recompone sumando el CCL.
+                    if not ccl_ord[0]:
+                        raise RuntimeError("hace falta el CCL para pasar %s a dolares" % tk)
+                    conv = []
+                    for f, px in serie:
+                        c = ccl_en(f, ccl_ord)
+                        if c:
+                            conv.append((f, px / c))
+                    serie = conv
                 precios.setdefault(tk, {}).update(dict(serie))
-                log("  [%2d/%d] %-5s %d ruedas" % (i, len(tickers), tk, len(serie)))
+                log("  [%2d/%d] %-6s %d ruedas%s" % (i, len(tickers), tk, len(serie),
+                    "  (%s, pasado a USD por CCL)" % simbolo
+                    if universo[tk].get("enPesos") else ""))
             except Exception as e:
                 fallaron.append(tk)
                 log("  [%2d/%d] %-5s FALLO: %s" % (i, len(tickers), tk, e))
@@ -324,18 +361,14 @@ def main():
             avisos.append("Yahoo fallo para: %s (se usa lo ya guardado)"
                           % ", ".join(fallaron))
 
-        # 3. CCL
-        try:
-            ccl.update(dict(fuentes.serie_ccl()))
-        except Exception as e:
-            avisos.append("No se pudo actualizar el CCL: %s" % e)
-
         # 4. Liquidez del panel local: que se puede operar de verdad
         try:
             hoy = dt.date.today().isoformat()
             panel = fuentes.panel_liquidez()
             liq = [f for f in liq if f["fecha"] != hoy]
             for tk in tickers:
+                if es_indice(tk):
+                    continue
                 d = panel.get(tk)
                 if not d:
                     continue
@@ -389,6 +422,7 @@ def main():
             "categoria": meta["categoria"],
             "apalancamiento": meta.get("apalancamiento", 1),
             "driver": meta.get("driver", ""),
+            "tipo": meta.get("tipo", "etf"),
             "liquidez": resumen_liq.get(tk),
             "enByma": en_byma[tk],
             "ret": [None if r is None else round(r, 6) for r in rets],

@@ -296,7 +296,8 @@ function ordenPorSimilitud(tickers, rho) {
 
 function categoriasOrdenadas() {
   const orden = ['Indice amplio EE.UU.', 'Factor / Estilo', 'Sectorial EE.UU.', 'Tematico',
-                 'Internacional', 'Commodities y metales', 'Cripto', 'Apalancado / Inverso'];
+                 'Internacional', 'Commodities y metales', 'Cripto', 'Apalancado / Inverso',
+                 'Indice local'];
   const presentes = new Set(Object.values(estado.datos.etfs).map((e) => e.categoria));
   const out = orden.filter((c) => presentes.has(c));
   for (const c of presentes) if (!out.includes(c)) out.push(c);
@@ -984,7 +985,16 @@ async function iniciar() {
   }
   estado.datos = d;
 
-  $('#conteo-etfs').textContent = Object.keys(d.etfs).length;
+  // El conteo tiene que distinguir: no todo lo que esta en el mapa es un ETF.
+  const nEtf = Object.values(d.etfs).filter((e) => e.tipo !== 'indice').length;
+  const nIdx = Object.keys(d.etfs).length - nEtf;
+  $('#conteo-etfs').textContent = nEtf;
+  const extra = $('#conteo-extra');
+  if (extra) {
+    extra.innerHTML = nIdx
+      ? `, más <strong>${nIdx}</strong> índice local en dólares como referencia`
+      : '';
+  }
   $('#ultima-rueda').textContent = fechaCorta(d.ultimaRueda);
   $('#generado').textContent = new Date(d.generado).toLocaleString('es-AR', {
     day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',

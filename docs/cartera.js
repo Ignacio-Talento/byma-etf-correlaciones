@@ -460,6 +460,10 @@ function componer(w, tickers, st) {
 function universoCartera() {
   const E = estado.datos.etfs;
   return Object.keys(E)
+    // Un indice no se puede comprar: entra al mapa de correlaciones como
+    // referencia, pero proponerlo en una cartera seria proponer algo que no
+    // existe como instrumento.
+    .filter((tk) => E[tk].tipo !== 'indice')
     .filter((tk) => !(CART.excluirApal && E[tk].categoria === 'Apalancado / Inverso'))
     .sort();
 }
@@ -844,7 +848,8 @@ function dibujarMezcla(c) {
    el color sigue a la categoria, nunca a su posicion en el ranking. */
 const SEC_CAT = ['#002060', '#145E81', '#00B0F0', '#A7B2C8', '#0F4C68', '#6B7280', '#1B9E5A', '#E08E16'];
 const ORDEN_CAT = ['Indice amplio EE.UU.', 'Factor / Estilo', 'Sectorial EE.UU.', 'Tematico',
-                   'Internacional', 'Commodities y metales', 'Cripto', 'Apalancado / Inverso'];
+                   'Internacional', 'Commodities y metales', 'Cripto', 'Apalancado / Inverso',
+                   'Indice local'];
 const colorCategoria = (c) => SEC_CAT[Math.max(0, ORDEN_CAT.indexOf(c)) % SEC_CAT.length];
 
 /* --------------------------------------------------------- comentario --- */

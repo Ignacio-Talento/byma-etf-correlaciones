@@ -1,5 +1,5 @@
 {
-  "_comentario": "ETFs que cotizan en BYMA como CEDEAR. El universo se valida a diario contra el panel de BYMA (scripts/universo_byma.py). 'nombre' y 'categoria' se mantienen a mano: si BYMA lista un ETF nuevo, el job lo detecta y avisa para agregarlo aca. El campo 'driver' explica a que reacciona cada ETF; alimenta los comentarios de la cartera.",
+  "_comentario": "ETFs que cotizan en BYMA como CEDEAR. El universo se valida a diario contra el panel de BYMA (scripts/universo_byma.py). 'nombre' y 'categoria' se mantienen a mano: si BYMA lista un ETF nuevo, el job lo detecta y avisa para agregarlo aca. El campo 'driver' explica a que reacciona cada ETF; alimenta los comentarios de la cartera. Las entradas con tipo='indice' no son CEDEARs: se toman de otra fuente (simboloYahoo) y, si vienen en pesos, se pasan a dolares por el CCL. Entran al mapa pero no a la cartera, porque no se pueden comprar.",
   "etfs": {
     "SPY": {
       "nombre": "SPDR S&P 500",
@@ -275,6 +275,19 @@
       "categoria": "Apalancado / Inverso",
       "apalancamiento": 0,
       "driver": "Futuros de VIX de corto plazo. Se dispara cuando las acciones caen fuerte, pero el contango de la curva de volatilidad le erosiona valor de forma permanente: sirve de cobertura tactica, no de posicion."
+    },
+    "GLDB": {
+      "nombre": "IDX Alternative FIAT",
+      "categoria": "Commodities y metales",
+      "driver": "Canasta de alternativas al dinero fiduciario: metales preciosos y bitcoin. Se mueve con el oro mucho mas que con las acciones, pero con casi el doble de volatilidad que el oro solo. Listado reciente: tiene poca historia."
+    },
+    "MERVAL": {
+      "nombre": "Indice Merval en dolares (CCL)",
+      "categoria": "Indice local",
+      "tipo": "indice",
+      "simboloYahoo": "^MERV",
+      "enPesos": true,
+      "driver": "Las acciones argentinas medidas en dolares. Sus drivers son locales —riesgo pais, politica, flujos hacia el mercado domestico— y por eso suele moverse por su cuenta respecto del panel global. No es un ETF y no se puede comprar: entra al mapa de correlaciones como referencia, no a la cartera."
     }
   }
 }

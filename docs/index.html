@@ -18,7 +18,7 @@
       <div class="cabecera-txt">
         <span class="eyebrow">Research &middot; Mercado de capitales</span>
         <h1>Correlaciones de ETFs en BYMA</h1>
-        <p class="sub">Los <strong id="conteo-etfs">&mdash;</strong> ETFs que cotizan en BYMA como CEDEAR, correlacionados por sus retornos diarios.</p>
+        <p class="sub">Los <strong id="conteo-etfs">&mdash;</strong> ETFs que cotizan en BYMA como CEDEAR<span id="conteo-extra"></span>, correlacionados por sus retornos diarios.</p>
       </div>
     </div>
     <div class="estado">
@@ -369,6 +369,7 @@
       <div>
         <h3>Universo</h3>
         <p>BYMA define qué entra: el listado sale del panel de CEDEARs de BYMA y se revisa en cada corrida. Si BYMA lista un ETF nuevo, el job lo detecta y avisa.</p>
+        <p class="metodo-dato">Se agrega el <strong>Merval en dólares</strong> (índice en pesos dividido por el CCL) como referencia. No es un ETF ni se puede comprar: entra al mapa para ver contra qué correlaciona, pero queda afuera de la cartera y del backtest.</p>
       </div>
       <div>
         <h3>Precios</h3>

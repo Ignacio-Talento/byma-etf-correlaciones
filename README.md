@@ -12,7 +12,7 @@ Se actualiza solo, todos los días, con el cierre de mercado.
 Los **58 ETFs** que cotizan en BYMA como CEDEAR, más el **Merval en dólares** como
 referencia, correlacionados entre sí por sus retornos diarios. En el tablero se puede:
 
-- cambiar la **ventana** (1 mes a 3 años) y ver cómo cambia la foto;
+- cambiar la **ventana** (1 mes a 5 años) y ver cómo cambia la foto;
 - pasar de **dólares a pesos**, que le suma el efecto del CCL;
 - **ordenar por similitud** (clustering jerárquico), que es lo que hace que los
   bloques de la matriz se lean como grupos y no como ruido;
@@ -123,6 +123,30 @@ universo entero, para poder verificarlo.
 backtracking sobre el símplex con tope). Sus pesos se compararon contra una
 implementación independiente en Python con `scipy.optimize` (SLSQP): coinciden en
 retorno, volatilidad, Sharpe y en los once pesos, al segundo decimal.
+
+## Ventanas largas y el tope
+
+El tablero ofrece ventanas de correlación de hasta 5 años y lookbacks de cartera
+de hasta 5 años. Sirven para explorar, y muestran algo por sí solas: **el Sharpe
+dentro de la muestra se desinfla con la ventana** — 3,37 con un año, 1,53 con
+tres, 1,00 con cinco. Es el sobreajuste hecho visible.
+
+Un activo sin historia completa en la ventana **queda afuera de la optimización**
+en vez de recortarla. Pedir cinco años excluye a los listados recientes (ETHA,
+GLDB, IBIT) y el tablero dice cuáles.
+
+El **tope por activo** llega hasta 50% y "sin tope", pero no ata igual en los tres
+perfiles:
+
+| Tope | Conservador | Moderado | Audaz |
+|---|---|---|---|
+| 15% | 12 posiciones | 11 | 10 |
+| 25% | 11 | 10 (no ata) | 5 |
+| 50% | 6, MUB al 50% | 10 (no ata) | 3, EWY al 44% |
+| Sin tope | 5, **MUB al 92%** | 10 | 2, EWY al 58% |
+
+En el moderado el óptimo sin restricción tiene un peso máximo de 20,5%, así que
+aflojar más allá de 25% no cambia nada. En los otros dos sí, y bastante.
 
 ## Por qué 126 y 252, medido
 

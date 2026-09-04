@@ -41,17 +41,28 @@ const PERFILES = [
     todos, o deja de ser una matriz consistente. */
 function estadisticas(tickers, ventana) {
   const d = estado.datos;
-  const N = tickers.length;
   const largo = d.fechas.length;
-  const desde = Math.max(0, largo - ventana);
-  const series = tickers.map((tk) => d.etfs[tk].ret);
+  const desde = Math.max(1, largo - ventana);   // la rueda 0 no tiene retorno
 
-  const filas = [];
-  for (let t = desde; t < largo; t++) {
-    let ok = true;
-    for (let i = 0; i < N; i++) if (series[i][t] === null) { ok = false; break; }
-    if (ok) filas.push(t);
+  // Se excluyen los activos sin historia completa en la ventana, no las ruedas.
+  // Al reves —quedarse solo con las ruedas donde TODOS tienen dato— un listado
+  // reciente le pone techo a la ventana entera: con GLDB adentro, pedir 5 anios
+  // devolvia las mismas 215 ruedas que pedir 1, y el selector no hacia nada.
+  const vivos = [], sinHistoria = [];
+  for (const tk of tickers) {
+    const r = d.etfs[tk].ret;
+    let completo = true;
+    for (let t = desde; t < largo; t++) {
+      if (r[t] === null || r[t] === undefined) { completo = false; break; }
+    }
+    (completo ? vivos : sinHistoria).push(tk);
   }
+  if (vivos.length < 8) return null;
+
+  const N = vivos.length;
+  const series = vivos.map((tk) => d.etfs[tk].ret);
+  const filas = [];
+  for (let t = desde; t < largo; t++) filas.push(t);
   if (filas.length < 40) return null;
 
   const mu = new Array(N).fill(0);
@@ -67,7 +78,6 @@ function estadisticas(tickers, ventana) {
     }
   }
 
-  // correlacion, para medir descorrelacion de la cartera
   const sd = cov.map((f, i) => Math.sqrt(Math.max(f[i], 1e-18)));
   const corr = cov.map((f, i) => f.map((v, j) => v / (sd[i] * sd[j])));
 
@@ -78,7 +88,8 @@ function estadisticas(tickers, ventana) {
   }
   const rfAnual = tasas.length ? tasas.reduce((a, b) => a + b, 0) / tasas.length / 100 : 0;
 
-  return { mu, cov, corr, n: filas.length, rfAnual, rfDiaria: rfAnual / DIAS_ANIO };
+  return { mu, cov, corr, n: filas.length, vivos, sinHistoria,
+           rfAnual, rfDiaria: rfAnual / DIAS_ANIO };
 }
 
 /* ------------------------------------------------------------ algebra --- */
@@ -469,9 +480,9 @@ function universoCartera() {
 }
 
 function calcularCartera() {
-  const tickers = universoCartera();
-  const st = estadisticas(tickers, CART.lookback);
+  const st = estadisticas(universoCartera(), CART.lookback);
   if (!st) return null;
+  const tickers = st.vivos;
 
   const fr = frontera(st.mu, st.cov, CART.tope);
   if (fr.length < 2) return null;
@@ -570,13 +581,14 @@ function bootstrapPesos(r, muestras, alListo, alProgreso) {
   const largo = d.fechas.length;
   const desde = Math.max(0, largo - CART.lookback);
 
+  // r.tickers ya son los vivos de la ventana, asi que todas las filas sirven.
   const filas = [];
-  for (let t = desde; t < largo; t++) {
+  for (let t = Math.max(1, desde); t < largo; t++) {
     const fila = new Array(N);
     let ok = true;
     for (let i = 0; i < N; i++) {
       const v = d.etfs[tickers[i]].ret[t];
-      if (v === null) { ok = false; break; }
+      if (v === null || v === undefined) { ok = false; break; }
       fila[i] = v;
     }
     if (ok) filas.push(fila);
@@ -899,6 +911,22 @@ function comentario(r, c) {
       ? `<p class="nota">Las otras ${c.pesos.length - top.length} posiciones tienen su driver en el tooltip de la tabla.</p>`
       : ''));
 
+  // Aflojar el tope tiene un costo medido, no teorico: conviene decirlo donde
+  // se elige, no en la metodologia.
+  if (CART.tope > 0.15) {
+    const maxPeso = Math.max(...c.w);
+    const ata = maxPeso >= CART.tope - 1e-6;
+    partes.push(
+      `<p class="nota"><strong>Sobre el tope de ${pct0C(CART.tope)}.</strong> `
+      + (ata
+        ? `Ata: la posición más grande está justo en el tope, así que aflojarlo la haría crecer. `
+        : `Acá no ata: la posición más grande es ${pctC(maxPeso)}, por debajo del tope, `
+          + `así que el resultado es el mismo que sin restricción. `)
+      + `El backtest midió que apretarlo mejora el resultado fuera de muestra: con máximo `
+      + `Sharpe el Sharpe pasa de 0,64 sin tope a 0,82 con 15%. Es el regularizador más `
+      + `efectivo que tiene esta herramienta.</p>`);
+  }
+
   // Peso y riesgo no son lo mismo, y la brecha suele sorprender.
   const conCtr = c.pesos.filter((p) => p.pctr !== undefined);
   if (conCtr.length) {
@@ -1128,6 +1156,14 @@ function recalcularCartera() {
   dibujarFronteraSVG(r);
   correrEstabilidad(r);
   $('#ruedas-usadas').textContent = r.ruedas;
+  const fuera = $('#sin-historia');
+  if (fuera) {
+    const sh = r.st.sinHistoria || [];
+    fuera.innerHTML = sh.length
+      ? ` Quedan afuera <strong>${sh.length}</strong> por no tener historia completa en esta `
+        + `ventana: ${sh.join(', ')}.`
+      : '';
+  }
   $('#rf-usada').textContent = pctC(r.rfAnual);
 }
 

@@ -40,9 +40,10 @@ SALIDA = os.path.join(RAIZ, "docs", "data", "dataset.json")
 # despues la cache deja solo los altas reales para revisar.
 POR_CORRIDA = 60
 
-# Cuantas ruedas de retornos publicamos. 760 ~ 3 anios: alcanza para la
-# ventana mas larga del tablero (504) y mantiene liviano el JSON.
-RUEDAS_PUBLICADAS = 760
+# Cuantas ruedas de retornos publicamos. 1260 ~ 5 anios, que es la ventana mas
+# larga que ofrece el tablero (y el lookback mas largo de la cartera). El JSON
+# crece proporcionalmente, asi que este numero no se sube sin motivo.
+RUEDAS_PUBLICADAS = 1260
 
 # csv.writer termina las lineas con CRLF por defecto. Estos CSV los escribe
 # tanto una corrida a mano en Windows como el job diario en Linux: si cada uno

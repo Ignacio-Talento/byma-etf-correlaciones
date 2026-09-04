@@ -40,9 +40,11 @@
       <option value="21">1 mes (21 ruedas)</option>
       <option value="63">3 meses (63)</option>
       <option value="126" selected>6 meses (126)</option>
-      <option value="252">1 anio (252)</option>
-      <option value="504">2 anios (504)</option>
-      <option value="756">3 anios (756)</option>
+      <option value="252">1 año (252)</option>
+      <option value="504">2 años (504)</option>
+      <option value="756">3 años (756)</option>
+      <option value="1008">4 años (1008)</option>
+      <option value="1260">5 años (1260)</option>
     </select>
   </div>
 
@@ -313,7 +315,7 @@
         <h2>Cartera diversificada por perfil de riesgo</h2>
         <p class="panel-sub">Tres puntos de la misma frontera, optimizados en dólares sobre
           <span id="ruedas-usadas">&mdash;</span> ruedas. Sólo largo, con tope por activo.
-          Tasa libre de riesgo usada: <span id="rf-usada">&mdash;</span> anual.</p>
+          Tasa libre de riesgo usada: <span id="rf-usada">&mdash;</span> anual.<span id="sin-historia"></span></p>
       </div>
       <button type="button" id="descargar-cartera" class="btn">Descargar los 3 perfiles</button>
     </div>
@@ -327,6 +329,9 @@
             <option value="126">6 meses</option>
             <option value="252" selected>1 año</option>
             <option value="504">2 años</option>
+            <option value="756">3 años</option>
+            <option value="1008">4 años</option>
+            <option value="1260">5 años</option>
           </select>
         </div>
         <div class="filtro">
@@ -335,6 +340,7 @@
             <option value="0.10">10%</option>
             <option value="0.15" selected>15%</option>
             <option value="0.25">25%</option>
+            <option value="0.50">50%</option>
             <option value="1">Sin tope</option>
           </select>
         </div>
@@ -439,6 +445,7 @@
         <h3>Por qué 126 ruedas</h3>
         <p>No es convención: se midió cuál ventana <em>predice mejor</em> la correlación del período siguiente. Contra horizontes de 3 y 6 meses, 126 da el menor error (0,151 y 0,148) y la mayor concordancia. Con 21 el error salta a 0,19 y con 504 vuelve a subir.</p>
         <p class="metodo-dato">Y por qué 252 en la cartera: es el óptimo fuera de muestra tanto del máximo Sharpe (0,64 neto contra 0,48 con 126 y 0,28 con 504) como de la mínima varianza. Los tres perfiles comparten ventana porque son puntos de la misma frontera; con ventanas distintas el gráfico dibujaría tres curvas como si fueran una.</p>
+        <p class="metodo-dato">Las ventanas largas están para explorar, y muestran algo útil: el Sharpe <em>dentro</em> de la muestra se desinfla con la ventana (3,4 con un año, 1,0 con cinco). Es el sobreajuste hecho visible. Un activo sin historia completa en la ventana queda afuera de la optimización en vez de recortarla, así que pedir cinco años excluye a los listados recientes.</p>
       </div>
       <div>
         <h3>Qué se distingue del ruido</h3>
@@ -478,7 +485,7 @@
 <div id="tooltip" class="tooltip" hidden aria-hidden="true"></div>
 
 <script src="app.js?v=1f7bccc0"></script>
-<script src="cartera.js?v=1284b0c3"></script>
+<script src="cartera.js?v=81cca3c6"></script>
 <script src="backtest.js?v=ed6d1358"></script>
 <script src="base100.js?v=39d28889"></script>
 </body>

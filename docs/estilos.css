@@ -676,3 +676,16 @@ ul.drivers li:last-child { border-bottom: 0; }
 
 .tooltip .tt-fila { display: flex; align-items: center; gap: 5px; font-size: 11.5px; padding: 1px 0; }
 .tooltip .tt-fila .serie-punto { margin: 0; }
+
+/* ============================================ significancia estadistica === */
+
+/* Lo que no se distingue de cero se atenua en vez de borrarse: el estimado
+   sigue estando, pero deja de competir por la atencion con lo que si es real. */
+#mapa .celda.ruido { opacity: .18; }
+#tabla-pares tr.fila-ruido { opacity: .45; }
+.marca-ruido {
+  display: inline-block; margin-left: 5px; padding: 0 5px; border-radius: 3px;
+  font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em;
+  background: var(--linea); color: var(--tinta-apagada); font-weight: 600;
+}
+#tabla-pares .tenue { color: var(--tinta-apagada); font-size: 11px; white-space: nowrap; }

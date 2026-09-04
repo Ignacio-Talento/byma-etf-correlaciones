@@ -82,6 +82,10 @@
     <input id="f-buscar" type="search" placeholder="SPY, oro, cripto..." autocomplete="off">
   </div>
 
+  <div class="filtro filtro-check">
+    <label class="check"><input type="checkbox" id="f-sig"> Atenuar lo no significativo</label>
+  </div>
+
   <div class="filtro filtro-vista">
     <label>Vista</label>
     <div class="segmentado" role="group" aria-label="Vista">
@@ -170,6 +174,7 @@
             <th data-col="a">ETF</th><th data-col="b">ETF</th>
             <th data-col="rho" class="num">Correlacion</th>
             <th data-col="n" class="num">Ruedas</th>
+            <th class="num">Intervalo 95%</th>
           </tr></thead>
           <tbody></tbody>
         </table>
@@ -424,6 +429,16 @@
       <div>
         <h3>El cálculo</h3>
         <p>Correlación de Pearson sobre retornos logarítmicos diarios, par a par, usando sólo las ruedas donde ambos tienen dato. Una correlación de ventana corta se mueve mucho: mirá la serie móvil antes de sacar conclusiones.</p>
+      </div>
+      <div>
+        <h3>Por qué 126 ruedas</h3>
+        <p>No es convención: se midió cuál ventana <em>predice mejor</em> la correlación del período siguiente. Contra horizontes de 3 y 6 meses, 126 da el menor error (0,151 y 0,148) y la mayor concordancia. Con 21 el error salta a 0,19 y con 504 vuelve a subir.</p>
+        <p class="metodo-dato">Y por qué 252 en la cartera: es el óptimo fuera de muestra tanto del máximo Sharpe (0,64 neto contra 0,48 con 126 y 0,28 con 504) como de la mínima varianza. Los tres perfiles comparten ventana porque son puntos de la misma frontera; con ventanas distintas el gráfico dibujaría tres curvas como si fueran una.</p>
+      </div>
+      <div>
+        <h3>Qué se distingue del ruido</h3>
+        <p>Una correlación estimada tiene error de muestreo. Con 126 ruedas hace falta pasar de <strong>±0,17</strong> para separarse de cero al 95% (intervalo de Fisher); con 21 ruedas, de ±0,43. La casilla de la barra de filtros atenúa lo que no llega.</p>
+        <p class="metodo-dato">Con tantos pares a la vez, el 5% pasaría el filtro por azar: el test sirve para descartar, no para confirmar un par puntual.</p>
       </div>
       <div>
         <h3>La cartera</h3>

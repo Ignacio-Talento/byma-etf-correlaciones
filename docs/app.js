@@ -19,6 +19,7 @@ const estado = {
   categorias: new Set(),
   busqueda: '',
   vista: 'mapa',
+  soloSig: false,           // atenuar lo que no se distingue del ruido
   sel: null,                // [a, b] del par seleccionado
   ordenTabla: { col: 'rho', desc: true },
   tickers: [],              // orden vigente en el mapa
@@ -154,6 +155,36 @@ function correlacion(xs, ys, indices) {
   return { rho: vxy / Math.sqrt(vx * vy), n };
 }
 
+/* ------------------------------------------------- significancia --- */
+
+/** Umbral por encima del cual una correlacion se distingue de cero al 95%.
+    Sale de la transformada z de Fisher: z = atanh(rho) es aproximadamente
+    normal con desvio 1/sqrt(n-3), asi que el umbral es tanh(1,96/sqrt(n-3)).
+    Con 126 ruedas da 0,17: TODA celda entre -0,17 y +0,17 es, estadisticamente,
+    indistinguible de que no haya ninguna relacion. */
+function umbralRho(n) {
+  if (!n || n < 5) return 1;
+  return Math.tanh(1.96 / Math.sqrt(n - 3));
+}
+
+/** Intervalo de confianza al 95% de una correlacion, via Fisher. */
+function intervaloRho(rho, n) {
+  if (rho === null || !n || n < 5) return null;
+  const z = Math.atanh(Math.max(-0.9999, Math.min(0.9999, rho)));
+  const se = 1 / Math.sqrt(n - 3);
+  return [Math.tanh(z - 1.96 * se), Math.tanh(z + 1.96 * se)];
+}
+
+/** En modo diferencia lo que se testea es si DOS correlaciones difieren, no
+    si una difiere de cero. Es el test de Fisher para muestras independientes:
+    las ruedas de estres y las de calma no se solapan. */
+function difSignificativa(rhoA, nA, rhoB, nB) {
+  if (rhoA === null || rhoB === null || nA < 5 || nB < 5) return false;
+  const z = (r) => Math.atanh(Math.max(-0.9999, Math.min(0.9999, r)));
+  const se = Math.sqrt(1 / (nA - 3) + 1 / (nB - 3));
+  return Math.abs(z(rhoA) - z(rhoB)) / se > 1.96;
+}
+
 /** Indices [desde, fin) como array, para el caso normal de una ventana. */
 function rango(desde, hasta) {
   const out = [];
@@ -226,10 +257,22 @@ function calcularMatriz(tickers) {
   const largo = estado.datos.fechas.length;
   const enVentana = rango(Math.max(0, largo - estado.ventana), largo);
 
-  if (estado.ruedas === 'todas') return matrizSobre(series, enVentana, 1);
+  const conSig = (m) => {
+    const N = series.length;
+    const sig = Array.from({ length: N }, () => new Array(N).fill(false));
+    for (let i = 0; i < N; i++) {
+      for (let j = 0; j < N; j++) {
+        if (i === j) continue;
+        sig[i][j] = m.rho[i][j] !== null && Math.abs(m.rho[i][j]) > umbralRho(m.cnt[i][j]);
+      }
+    }
+    return { ...m, sig };
+  };
+
+  if (estado.ruedas === 'todas') return conSig(matrizSobre(series, enVentana, 1));
 
   const est = matrizSobre(series, ruedasDeEstres().indices, 1);
-  if (estado.ruedas === 'estres') return est;
+  if (estado.ruedas === 'estres') return conSig(est);
 
   // Diferencia: cuanto sube la correlacion cuando el mercado cae fuerte.
   // La base son las ruedas de calma del MISMO periodo, no la ventana elegida:
@@ -237,15 +280,18 @@ function calcularMatriz(tickers) {
   const todo = matrizSobre(series, ruedasDeCalma(), 1);
   const N = series.length;
   const rho = Array.from({ length: N }, () => new Array(N).fill(null));
+  const sig = Array.from({ length: N }, () => new Array(N).fill(false));
   for (let i = 0; i < N; i++) {
     rho[i][i] = 0;
     for (let j = 0; j < N; j++) {
       if (i === j) continue;
       rho[i][j] = (est.rho[i][j] === null || todo.rho[i][j] === null)
         ? null : est.rho[i][j] - todo.rho[i][j];
+      sig[i][j] = difSignificativa(est.rho[i][j], est.cnt[i][j],
+                                   todo.rho[i][j], todo.cnt[i][j]);
     }
   }
-  return { rho, cnt: est.cnt, esDiferencia: true };
+  return { rho, cnt: est.cnt, sig, esDiferencia: true, base: todo, estres: est };
 }
 
 /** Correlacion movil del par, para ver si el numero de hoy es estable. */
@@ -404,7 +450,7 @@ function dibujarMapa() {
   svg.setAttribute('height', H);
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
 
-  const { rho, cnt } = estado.matriz;
+  const { rho, cnt, sig } = estado.matriz;
   const hayBusqueda = estado.busqueda.trim() !== '';
   const marca = tickers.map(coincide);
   const mostrarValor = celda >= 24;
@@ -424,6 +470,9 @@ function dibujarMapa() {
         rect.setAttribute('stroke', 'var(--linea)');
       }
       if (hayBusqueda && !(marca[i] || marca[j])) rect.classList.add('apagada');
+      // Lo que no se distingue de cero no puede pintarse igual que lo que si:
+      // el color estaria afirmando una relacion que el dato no sostiene.
+      if (estado.soloSig && sig && i !== j && !sig[i][j]) rect.classList.add('ruido');
       rect.dataset.i = i; rect.dataset.j = j;
       gCeldas.appendChild(rect);
 
@@ -484,9 +533,31 @@ function dibujarMapa() {
   pintarSeleccion();
 
   const pares = N * (N - 1) / 2;
-  $('#nota-mapa').textContent =
-    `${N} ETFs, ${pares.toLocaleString('es-AR')} pares. La diagonal es cada ETF consigo mismo. `
-    + (mostrarValor ? '' : 'Pasá el mouse por una celda para ver el valor, o abrí la vista de tabla.');
+  let sigN = 0, nMediana = 0;
+  if (sig) {
+    const ns = [];
+    for (let i = 0; i < N; i++) {
+      for (let j = i + 1; j < N; j++) {
+        if (rho[i][j] === null) continue;
+        if (sig[i][j]) sigN++;
+        ns.push(cnt[i][j]);
+      }
+    }
+    ns.sort((x, y) => x - y);
+    nMediana = ns[Math.floor(ns.length / 2)] || 0;
+  }
+  const umb = umbralRho(nMediana);
+  const falsos = Math.round(pares * 0.05);
+  $('#nota-mapa').innerHTML =
+    `${N} instrumentos, ${pares.toLocaleString('es-AR')} pares. La diagonal es cada uno consigo mismo. `
+    + (mostrarValor ? '' : 'Pasá el mouse por una celda para ver el valor, o abrí la vista de tabla. ')
+    + (sig && nMediana
+      ? `<br>Con ${nMediana} ruedas, hace falta pasar de <strong>${fmtRho(umb).replace('+', '±')}</strong> `
+        + `para distinguirse de cero al 95%: <strong>${sigN.toLocaleString('es-AR')}</strong> de `
+        + `${pares.toLocaleString('es-AR')} pares lo logran. Ojo con el problema de las pruebas `
+        + `múltiples: testeando tantos pares a la vez, unos ${falsos.toLocaleString('es-AR')} `
+        + `pasarían el filtro por puro azar.`
+      : '');
 }
 
 function moverResaltado(i, j) {
@@ -530,11 +601,26 @@ function mostrarTooltip(ev, i, j) {
   const r = g.rho[i][j], n = g.cnt[i][j];
   const tt = $('#tooltip');
   const E = estado.datos.etfs;
+  const esDif = estado.matriz.esDiferencia;
+  const sg = estado.matriz.sig;
+  let extra = '';
+  if (i !== j && r !== null) {
+    if (esDif) {
+      const dif = sg && sg[i][j];
+      extra = `<div class="tt-meta">${dif ? 'El cambio es significativo al 95%'
+        : 'El cambio NO se distingue del ruido'}</div>`;
+    } else {
+      const ic = intervaloRho(r, n);
+      const distinto = sg ? sg[i][j] : Math.abs(r) > umbralRho(n);
+      extra = ic ? `<div class="tt-meta">Intervalo 95%: ${fmtRho(ic[0])} a ${fmtRho(ic[1])}`
+        + `${distinto ? '' : ' — <strong>no se distingue de cero</strong>'}</div>` : '';
+    }
+  }
   tt.innerHTML = i === j
     ? `<div class="tt-par">${a}</div><div class="tt-meta">${E[a].nombre}</div>`
     : `<div class="tt-par">${a} <span style="opacity:.5">vs</span> ${b}</div>`
       + `<div class="tt-rho" style="color:${r === null ? 'inherit' : colorRho(r)}">${fmtRho(r)}</div>`
-      + `<div class="tt-meta">${lecturaRho(r)} &middot; ${n} ruedas</div>`;
+      + `<div class="tt-meta">${lecturaRho(r)} &middot; ${n} ruedas</div>` + extra;
   tt.hidden = false;
   const m = 14, w = tt.offsetWidth, h = tt.offsetHeight;
   let x = ev.clientX + m, y = ev.clientY + m;
@@ -624,12 +710,15 @@ function dibujarMovil(pts) {
 /* --------------------------------------------------------- extremos --- */
 
 function pares() {
-  const { rho, cnt } = estado.matriz;
+  const { rho, cnt, sig } = estado.matriz;
   const tk = estado.tickers;
   const out = [];
   for (let i = 0; i < tk.length; i++) {
     for (let j = i + 1; j < tk.length; j++) {
-      if (rho[i][j] !== null) out.push({ a: tk[i], b: tk[j], rho: rho[i][j], n: cnt[i][j] });
+      if (rho[i][j] !== null) {
+        out.push({ a: tk[i], b: tk[j], rho: rho[i][j], n: cnt[i][j],
+                   sig: sig ? sig[i][j] : null, i, j });
+      }
     }
   }
   return out;
@@ -680,11 +769,15 @@ function dibujarTabla() {
   for (const p of ps) {
     const tr = document.createElement('tr');
     const c = colorRho(p.rho);
+    const ic = estado.matriz.esDiferencia ? null : intervaloRho(p.rho, p.n);
+    if (estado.soloSig && p.sig === false) tr.classList.add('fila-ruido');
     tr.innerHTML =
       `<td><span class="tk">${p.a}</span> <span class="tk-desc">${E[p.a].nombre}</span></td>`
       + `<td><span class="tk">${p.b}</span> <span class="tk-desc">${E[p.b].nombre}</span></td>`
       + `<td class="num"><span class="pastilla" style="background:${c};color:${tintaSobre(c)}">${fmtRho3(p.rho)}</span></td>`
-      + `<td class="num">${p.n}</td>`;
+      + `<td class="num">${p.n}</td>`
+      + `<td class="num tenue">${ic ? `${fmtRho(ic[0])} a ${fmtRho(ic[1])}` : '—'}`
+        + `${p.sig === false ? ' <span class="marca-ruido">ruido</span>' : ''}</td>`;
     tr.addEventListener('click', () => seleccionar(p.a, p.b));
     frag.appendChild(tr);
   }
@@ -844,14 +937,19 @@ function titularCrisis() {
   // contamos cuantos pares dan un salto grande, que es el dato de fondo.
   const E = estado.datos.etfs;
   const mecanico = (tk) => E[tk].categoria === 'Apalancado / Inverso';
-  let peor = null, saltones = 0, comparables = 0;
+  let peor = null, saltones = 0, saltonesSig = 0, cambiosSig = 0, comparables = 0;
   for (let i = 0; i < tks.length; i++) {
     for (let j = i + 1; j < tks.length; j++) {
       const t = mTodo.rho[i][j], e = mEst.rho[i][j];
       if (t === null || e === null) continue;
       if (mecanico(tks[i]) || mecanico(tks[j])) continue;
       comparables++;
-      if (e - t >= 0.25) saltones++;
+      const esSig = difSignificativa(e, mEst.cnt[i][j], t, mTodo.cnt[i][j]);
+      if (esSig) cambiosSig++;
+      if (e - t >= 0.25) {
+        saltones++;
+        if (esSig) saltonesSig++;
+      }
       if (t > 0.35) continue;
       const salto = e - t;
       if (!peor || salto > peor.salto) peor = { salto, a: tks[i], b: tks[j], t, e };
@@ -874,6 +972,12 @@ function titularCrisis() {
         + `${comparables.toLocaleString('es-AR')} pares suben más de 0,25, y el caso más marcado `
         + `es <strong>${peor.a} / ${peor.b}</strong>, que pasa de ${fmtRho(peor.t)} a `
         + `${fmtRho(peor.e)}: diversifica en calma y deja de hacerlo justo en la caída.`
+        + ` <br>Los saltos grandes aguantan la prueba: <strong>${saltonesSig} de los ${saltones}</strong> `
+        + `son significativos al 95%. Lo que no aguanta es el resto del mapa — sobre los `
+        + `${comparables.toLocaleString('es-AR')} pares, sólo `
+        + `<strong>${Math.round(cambiosSig / comparables * 100)}%</strong> de los cambios se `
+        + `distingue del ruido. Con ${est.indices.length} ruedas de caída alcanza para detectar `
+        + `un efecto grande, no uno chico.`
       : '');
 }
 
@@ -885,9 +989,14 @@ function recalcular() {
   const m0 = calcularMatriz(base);
   estado.tickers = ordenarTickers(base, m0.rho);
   const idx = estado.tickers.map((t) => base.indexOf(t));
+  // Reindexar al orden del mapa tiene que arrastrar TODO lo que trae la
+  // matriz, no solo rho y cnt: la significancia se calcula sobre el orden
+  // alfabetico y se perdia en esta reconstruccion.
   estado.matriz = {
     rho: idx.map((i) => idx.map((j) => m0.rho[i][j])),
     cnt: idx.map((i) => idx.map((j) => m0.cnt[i][j])),
+    sig: m0.sig ? idx.map((i) => idx.map((j) => m0.sig[i][j])) : null,
+    esDiferencia: !!m0.esDiferencia,
   };
 
   if (window.redibujarB100 && estado.vista === 'base100') redibujarB100();
@@ -938,6 +1047,7 @@ function conectar() {
     recalcular();
   });
   $('#f-moneda').addEventListener('change', (e) => { estado.moneda = e.target.value; recalcular(); });
+  $('#f-sig').addEventListener('change', (e) => { estado.soloSig = e.target.checked; dibujarMapa(); dibujarTabla(); });
   $('#f-orden').addEventListener('change', (e) => { estado.orden = e.target.value; recalcular(); });
 
   let deb;

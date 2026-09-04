@@ -124,6 +124,57 @@ backtracking sobre el símplex con tope). Sus pesos se compararon contra una
 implementación independiente en Python con `scipy.optimize` (SLSQP): coinciden en
 retorno, volatilidad, Sharpe y en los once pesos, al segundo decimal.
 
+## Por qué 126 y 252, medido
+
+Las dos ventanas del tablero no son convención: se eligieron midiendo.
+
+**Correlación — 126 ruedas.** Se probó qué ventana predice mejor la correlación
+del período siguiente, que es para lo que uno la mira:
+
+| Ventana | Error (horizonte 3m) | Error (horizonte 6m) |
+|---|---|---|
+| 21 | 0,188 | 0,189 |
+| 63 | 0,159 | 0,154 |
+| **126** | **0,151** | **0,148** |
+| 252 | 0,155 | 0,150 |
+| 504 | 0,162 | 0,149 |
+
+**Cartera — 252 ruedas.** Sharpe fuera de muestra, neto de 50 pb por punta:
+
+| | 63 | 126 | **252** | 504 |
+|---|---|---|---|---|
+| Máximo Sharpe | 0,19 | 0,48 | **0,64** | 0,28 |
+| Mínima varianza | 0,29 | 0,49 | **0,59** | 0,54 |
+| Paridad de riesgo | 0,53 | 0,53 | 0,54 | **0,58** |
+
+Máximo Sharpe tiene un óptimo marcado y se cae para los dos lados. Paridad es
+casi indiferente y sólo prefiere 504 porque rota menos. Una vez que entra el
+costo, el ranking lo decide la rotación más que la calidad de la estimación.
+
+**Los tres perfiles comparten la ventana a propósito:** son puntos de la misma
+frontera, y con ventanas distintas el gráfico dibujaría tres curvas como si
+fueran una.
+
+## Significancia estadística
+
+Una correlación estimada tiene error de muestreo. Con 126 ruedas hace falta pasar
+de **±0,17** para separarse de cero al 95% (intervalo de Fisher); con 21 ruedas,
+de ±0,43. La casilla *Atenuar lo no significativo* baja el peso visual de lo que
+no llega, y la tabla publica el intervalo de cada par.
+
+| Ventana | Umbral | Pares significativos |
+|---|---|---|
+| 21 | ±0,43 | 46% |
+| 63 | ±0,25 | 79% |
+| 126 | ±0,17 | 91% |
+| 252 | ±0,12 | 92% |
+
+En la vista de diferencia el test es entre dos correlaciones (Fisher para muestras
+independientes: las ruedas de caída y las de calma no se solapan). Ahí sólo el
+**19%** de los cambios se distingue del ruido — los saltos grandes aguantan
+(68 de 69), los chicos no. Con 76 ruedas de caída alcanza para detectar un efecto
+grande, no uno chico.
+
 ## Lo que agrega el panel de cartera
 
 Sobre la cartera optimizada, cuatro lecturas que el peso y el Sharpe no dan:

@@ -25,6 +25,18 @@ const estado = {
   matriz: null,
 };
 
+/* Los modulos (cartera, backtest, base 100) se cargan en scripts aparte y
+   necesitan que el dataset ya este. Pero `iniciar()` es asincrona: al volver
+   del fetch puede retomar ENTRE la ejecucion de dos de esos scripts, y
+   entonces el que todavia no cargo se saltea sin ruido. Este registro
+   funciona en los dos ordenes: el que llega tarde se ejecuta al registrarse. */
+window.__datosListos = false;
+window.__initPendientes = [];
+window.alHaberDatos = function (fn) {
+  if (window.__datosListos) fn();
+  else window.__initPendientes.push(fn);
+};
+
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
 
@@ -878,6 +890,7 @@ function recalcular() {
     cnt: idx.map((i) => idx.map((j) => m0.cnt[i][j])),
   };
 
+  if (window.redibujarB100 && estado.vista === 'base100') redibujarB100();
   encabezadoMapa();
   titularCrisis();
   notaCCL();
@@ -938,7 +951,10 @@ function conectar() {
     estado.vista = b.dataset.vista;
     $('#panel-mapa').hidden = estado.vista !== 'mapa';
     $('#panel-tabla').hidden = estado.vista !== 'tabla';
-    if (estado.vista === 'tabla') dibujarTabla(); else dibujarMapa();
+    $('#panel-base100').hidden = estado.vista !== 'base100';
+    if (estado.vista === 'tabla') dibujarTabla();
+    else if (estado.vista === 'base100') { if (window.redibujarB100) redibujarB100(); }
+    else dibujarMapa();
   }));
 
   $$('#tabla-pares th').forEach((th) => th.addEventListener('click', () => {
@@ -1017,8 +1033,12 @@ async function iniciar() {
   conectar();
   recalcular();
   seleccionar('SPY', 'GLD');
-  if (window.iniciarCartera) window.iniciarCartera();
-  if (window.iniciarBacktest) window.iniciarBacktest();
+  window.__datosListos = true;
+  const pendientes = window.__initPendientes.slice();
+  window.__initPendientes = [];
+  for (const fn of pendientes) {
+    try { fn(); } catch (e) { console.error('Fallo al iniciar un modulo:', e); }
+  }
 }
 
 iniciar();

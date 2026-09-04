@@ -352,3 +352,4 @@ window.iniciarBacktest = async function () {
 };
 
 window.redibujarBacktest = function () { if (BT.datos) recalcularBT(); };
+window.alHaberDatos(window.iniciarBacktest);

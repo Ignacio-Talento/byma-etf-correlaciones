@@ -649,3 +649,30 @@ ul.drivers li:last-child { border-bottom: 0; }
 .metricas .dd-neg { color: #C0392B; }
 :root[data-theme="dark"] .metricas .dd-neg,
 :root:not([data-theme="light"]) .metricas .dd-neg { color: #df6959; }
+
+/* ==================================================== vista base 100 ====== */
+
+.b100-acciones { display: flex; gap: 8px; }
+.b100-controles {
+  display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center;
+  justify-content: space-between; padding-bottom: 10px;
+  border-bottom: 1px solid var(--linea); margin-bottom: 4px;
+}
+.b100-agregar { display: flex; gap: 6px; align-items: center; }
+.b100-agregar select {
+  font: inherit; font-size: 12.5px; color: var(--tinta);
+  background: var(--plano); border: 1px solid var(--borde);
+  border-radius: 6px; padding: 6px 9px; min-height: 32px; max-width: 260px;
+}
+.chip-serie { cursor: pointer; }
+.chip-serie .punto { opacity: 1; }
+.chip-serie .quitar { margin-left: 5px; opacity: .55; font-size: 13px; }
+.chip-serie:hover .quitar { opacity: 1; }
+
+.b100-fig { margin: 12px 0 14px; }
+#g-base100 { display: block; width: 100%; }
+#g-base100 .eje-lbl { font-size: 10px; fill: var(--tinta-apagada); font-family: var(--sans); }
+#g-base100 .serie-lbl { font-size: 10.5px; font-family: var(--sans); font-weight: 600; }
+
+.tooltip .tt-fila { display: flex; align-items: center; gap: 5px; font-size: 11.5px; padding: 1px 0; }
+.tooltip .tt-fila .serie-punto { margin: 0; }

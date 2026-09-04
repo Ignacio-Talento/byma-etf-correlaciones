@@ -18,7 +18,8 @@ referencia, correlacionados entre sí por sus retornos diarios. En el tablero se
   bloques de la matriz se lean como grupos y no como ruido;
 - filtrar por categoría, resaltar un ticker, y abrir cualquier par para ver su
   **correlación móvil** — si el número de hoy es estable o es un momento suelto;
-- ver la **tabla completa** de los 1.431 pares y bajarla en CSV;
+- ver la **tabla completa** de todos los pares y bajarla en CSV;
+- comparar rendimientos acumulados en la vista **base 100**;
 - armar una **cartera diversificada por perfil de riesgo** sobre la frontera
   eficiente de Markowitz;
 - y ver, en el **backtest walk-forward**, qué habría rendido cada estrategia de
@@ -279,6 +280,7 @@ data/no_son_etf.json          caché del barrido de altas de BYMA
 docs/                         el sitio (GitHub Pages)
 docs/cartera.js               frontera eficiente y perfiles de riesgo
 docs/backtest.js              curvas walk-forward y sensibilidad al costo
+docs/base100.js               vista de rendimiento acumulado, base 100
 scripts/backtest.py           motor del walk-forward (precalcula el backtest)
 data/backtest_pesos.csv       cache de los pesos de cada rebalanceo
 docs/marca/                   wordmark Balanz + Open Sans (OFL)

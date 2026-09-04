@@ -1113,4 +1113,5 @@ function conectarCartera() {
 }
 
 window.iniciarCartera = function () { conectarCartera(); recalcularCartera(); };
+window.alHaberDatos(window.iniciarCartera);
 window.redibujarCartera = function () { if (CART.res) recalcularCartera(); };

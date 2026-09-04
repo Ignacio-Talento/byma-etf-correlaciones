@@ -86,6 +86,7 @@
     <label>Vista</label>
     <div class="segmentado" role="group" aria-label="Vista">
       <button type="button" data-vista="mapa" class="activo">Mapa</button>
+      <button type="button" data-vista="base100">Base 100</button>
       <button type="button" data-vista="tabla">Tabla</button>
     </div>
   </div>
@@ -113,6 +114,46 @@
       </div>
       <p class="nota" id="nota-mapa"></p>
       <p class="titular-crisis" id="titular-crisis" hidden></p>
+    </section>
+
+    <section class="panel panel-b100" id="panel-base100" hidden>
+      <div class="panel-cab">
+        <div>
+          <h2>Rendimiento acumulado, base 100</h2>
+          <p class="panel-sub" id="b100-sub">&mdash;</p>
+        </div>
+        <div class="b100-acciones">
+          <button type="button" id="b100-cartera" class="btn">Cargar la cartera</button>
+          <button type="button" id="b100-limpiar" class="btn">Limpiar</button>
+        </div>
+      </div>
+
+      <div class="b100-controles">
+        <div id="b100-chips" class="chips"></div>
+        <div class="b100-agregar">
+          <select id="b100-ticker" aria-label="Agregar serie"></select>
+          <button type="button" id="b100-add" class="btn">Agregar</button>
+        </div>
+      </div>
+      <p class="nota" id="b100-aviso"></p>
+
+      <figure class="b100-fig">
+        <svg id="g-base100" role="img" aria-label="Rendimiento acumulado de las series seleccionadas, base 100"></svg>
+      </figure>
+
+      <div class="tabla-scroll">
+        <table id="tabla-b100" class="tabla-datos">
+          <thead><tr>
+            <th>Serie</th><th class="num">Índice</th><th class="num">Rendimiento</th>
+            <th class="num">Volatilidad</th><th class="num">Máx. caída</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <p class="nota">La correlación dice cómo se mueven <em>juntos</em>; esto dice cuánto
+        rindió cada uno. Son preguntas distintas: dos activos pueden correlacionar 0,95 y
+        haber dado retornos completamente distintos.</p>
     </section>
 
     <section class="panel panel-tabla" id="panel-tabla" hidden>
@@ -419,5 +460,6 @@
 <script src="app.js"></script>
 <script src="cartera.js"></script>
 <script src="backtest.js"></script>
+<script src="base100.js"></script>
 </body>
 </html>

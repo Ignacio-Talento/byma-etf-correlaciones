@@ -349,6 +349,9 @@ window.iniciarBacktest = async function () {
     rt = setTimeout(() => { if (BT.datos) dibujarCurvas(calcularBT()); }, 200);
   });
   recalcularBT();
+  // La cartera se dibuja antes que esto y sin estos datos no puede dar su
+  // veredicto: ahora que estan, se lo avisamos.
+  if (typeof refrescarVeredicto === 'function') refrescarVeredicto();
 };
 
 /** Sharpe fuera de muestra de una estrategia al costo que se le pida.

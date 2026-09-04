@@ -1058,12 +1058,21 @@ function veredictoPrevio(r, c) {
   const costo = costoDeArmado(c.pesos);
   const proto = typeof protocoloBacktest === 'function' ? protocoloBacktest() : null;
 
-  if (!estr || typeof sharpeNetoDe !== 'function' || !proto) {
+  nodo.className = 'veredicto-previo';
+  if (!estr) {
+    // El audaz no tiene equivalente en el backtest y decirlo es mejor que
+    // asignarle el resultado de otra estrategia.
     nodo.innerHTML = `<p><strong>Lo de abajo es la mejor combinación del pasado, no una `
       + `recomendación.</strong> El perfil audaz es un punto de la frontera que el backtest `
       + `no prueba; los dos que sí prueba —mínima varianza y máximo Sharpe— quedan por debajo `
       + `de comprar el índice una vez que se descuenta el costo de operar.</p>`;
-    nodo.className = 'veredicto-previo';
+    return;
+  }
+  if (typeof sharpeNetoDe !== 'function' || !proto) {
+    // El backtest carga su JSON aparte y puede no estar listo todavia: se deja
+    // el aviso generico y se vuelve a dibujar cuando llegue.
+    nodo.innerHTML = `<p><strong>Lo de abajo es la mejor combinación del pasado, no una `
+      + `recomendación.</strong> Buscando el resultado fuera de muestra de esta estrategia…</p>`;
     return;
   }
 
@@ -1177,3 +1186,10 @@ function conectarCartera() {
 window.iniciarCartera = function () { conectarCartera(); recalcularCartera(); };
 window.alHaberDatos(window.iniciarCartera);
 window.redibujarCartera = function () { if (CART.res) recalcularCartera(); };
+
+/** Redibuja solo el veredicto. Lo llama el backtest cuando termina de cargar
+    su JSON: la cartera se dibuja antes y sin ese dato no puede dar el numero. */
+window.refrescarVeredicto = function () {
+  if (!CART.res) return;
+  veredictoPrevio(CART.res, CART.res.carteras[CART.perfil]);
+};

@@ -14,6 +14,7 @@ Uso:
 """
 import argparse
 import csv
+import io
 import datetime as dt
 import json
 import math
@@ -52,6 +53,46 @@ LF = "\n"
 
 class SkipLiquidez(Exception):
     """No corresponde registrar liquidez en esta corrida."""
+
+
+def sellar_assets():
+    """Pone ?v=<hash> en los <script> y <link> de index.html.
+
+    El sitio publica datos nuevos todos los dias pero el JS cambia poco, asi
+    que un navegador puede quedarse con el codigo viejo y correrlo contra un
+    dataset nuevo. El sello se calcula del CONTENIDO de cada archivo: cambia
+    solo cuando el archivo cambio, con lo cual no fuerza descargas de mas.
+    """
+    import hashlib
+    import re
+
+    idx = os.path.join(RAIZ, "docs", "index.html")
+    if not os.path.exists(idx):
+        return 0
+    html = io.open(idx, encoding="utf-8").read()
+
+    def sello(archivo):
+        ruta = os.path.join(RAIZ, "docs", archivo)
+        if not os.path.exists(ruta):
+            return None
+        h = hashlib.sha256(open(ruta, "rb").read()).hexdigest()[:8]
+        return h
+
+    cambios = [0]
+
+    def reemplazar(m):
+        attr, archivo, resto = m.group(1), m.group(2), m.group(3)
+        h = sello(archivo)
+        if not h:
+            return m.group(0)
+        cambios[0] += 1
+        return '%s="%s?v=%s"%s' % (attr, archivo, h, resto)
+
+    nuevo = re.sub(r'(src|href)="((?:app|cartera|backtest|base100)\.js|estilos\.css)(?:\?v=[0-9a-f]+)?"([^>]*)',
+                   reemplazar, html)
+    if nuevo != html:
+        io.open(idx, "w", encoding="utf-8", newline="").write(nuevo)
+    return cambios[0]
 
 
 def log(msg):
@@ -468,6 +509,10 @@ def main():
     os.makedirs(os.path.dirname(SALIDA), exist_ok=True)
     with open(SALIDA, "w", encoding="utf-8") as fh:
         json.dump(dataset, fh, ensure_ascii=False, separators=(",", ":"))
+
+    sellados = sellar_assets()
+    if sellados:
+        log("Assets sellados contra cache: %d" % sellados)
 
     kb = os.path.getsize(SALIDA) / 1024
     log("")

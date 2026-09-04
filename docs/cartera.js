@@ -115,17 +115,22 @@ function proyectar(v, tope) {
   return v.map((x) => Math.min(Math.max(x - (lo + hi) / 2, 0), tope));
 }
 
-/** Ascenso de gradiente proyectado con backtracking. */
+/** Ascenso de gradiente proyectado con backtracking.
+    La tolerancia es RELATIVA al valor del objetivo: los objetivos de aca van
+    desde ~1e-4 (media-varianza diaria) hasta ~0,2 (Sharpe), y un corte
+    absoluto haria iterar hasta el ruido de punto flotante en el primero. */
 function ascender(w0, obj, grad, tope, iters = 700) {
   let w = w0.slice(), fw = obj(w), paso = 1;
+  const TOL = 1e-9;
   for (let k = 0; k < iters; k++) {
     const g = grad(w);
+    const corte = TOL * Math.max(Math.abs(fw), 1e-12);
     let mejoro = false;
     for (let intento = 0; intento < 40; intento++) {
       const cand = proyectar(w.map((x, i) => x + paso * g[i]), tope);
       if (cand) {
         const fc = obj(cand);
-        if (fc > fw + 1e-15) { w = cand; fw = fc; mejoro = true; paso *= 1.8; break; }
+        if (fc > fw + corte) { w = cand; fw = fc; mejoro = true; paso *= 1.8; break; }
       }
       paso *= 0.5;
     }
@@ -190,10 +195,14 @@ function maxSharpe(mu, cov, rfDiaria, tope) {
 
 function frontera(mu, cov, tope, puntos = 46) {
   const cruda = [];
-  for (let k = 0; k < puntos; k++) {
+  // Arranque en caliente: la frontera es un continuo, asi que la solucion de
+  // un lambda es un excelente punto de partida para el siguiente. Barrer de
+  // lambda alto a bajo y encadenarlos evita reoptimizar desde cero 46 veces.
+  let previo = null;
+  for (let k = puntos - 1; k >= 0; k--) {
     const lam = Math.pow(10, -1.5 + (k / (puntos - 1)) * 5);
-    const w = puntoFrontera(mu, cov, tope, lam);
-    if (w) cruda.push({ w, ret: dot(mu, w), var: cuadratica(cov, w) });
+    const w = puntoFrontera(mu, cov, tope, lam, previo);
+    if (w) { previo = w; cruda.push({ w, ret: dot(mu, w), var: cuadratica(cov, w) }); }
   }
   cruda.sort((a, b) => a.var - b.var);
   const efi = [];
@@ -664,6 +673,40 @@ function comentario(r, c) {
     + (c.pesos.length > top.length
       ? `<p class="nota">Las otras ${c.pesos.length - top.length} posiciones tienen su driver en el tooltip de la tabla.</p>`
       : ''));
+
+  // Lo mismo, pero en las ruedas en que el mercado cayo. Una cartera puede
+  // estar muy descorrelacionada en promedio y juntarse justo en la caida.
+  const idxEstres = ruedasDeEstres().indices;
+  const idxCalma = ruedasDeCalma();
+  // Solo los pares que la cartera efectivamente tiene: son ~55 correlaciones,
+  // no las 1.176 de la matriz completa. Calcular todo bloqueaba 2 segundos.
+  const seriePos = c.pesos.map((p) => retornos(p.tk));
+  const corrEn = (idxs) => {
+    let num = 0, den = 0;
+    for (let i = 0; i < c.pesos.length; i++) {
+      for (let j = i + 1; j < c.pesos.length; j++) {
+        const { rho } = correlacion(seriePos[i], seriePos[j], idxs);
+        if (rho === null) continue;
+        const pw = c.pesos[i].w * c.pesos[j].w;
+        num += pw * rho; den += pw;
+      }
+    }
+    return den > 0 ? num / den : null;
+  };
+  const cCalma = corrEn(idxCalma), cEstres = corrEn(idxEstres);
+  if (cCalma !== null && cEstres !== null) {
+    const sube = cEstres - cCalma;
+    partes.push(
+      `<p><strong>¿Y cuando el mercado cae?</strong> La correlación media de esta cartera es `
+      + `<strong>${num2(cCalma)}</strong> en las ${idxCalma.length} ruedas tranquilas y `
+      + `<strong>${num2(cEstres)}</strong> en las ${idxEstres.length} peores del S&P 500. `
+      + (sube > 0.10
+        ? `Sube ${num2(sube)}: parte de la diversificación se evapora justo cuando hace falta.`
+        : sube < -0.05
+          ? `Baja ${num2(-sube)}: la diversificación aguanta, e incluso mejora, en las caídas.`
+          : `Se sostiene: la diversificación no se desarma en las caídas, que es lo que se le pide.`)
+      + `</p>`);
+  }
 
   // El par mas descorrelacionado de la cartera, como evidencia concreta
   let peor = null;

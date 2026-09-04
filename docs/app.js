@@ -13,6 +13,7 @@ const GUTTER = 66;          // lugar para las etiquetas de fila/columna
 const estado = {
   datos: null,
   ventana: 126,
+  ruedas: 'todas',        // 'todas' | 'estres' | 'diferencia'
   moneda: 'usd',
   orden: 'cluster',
   categorias: new Set(),
@@ -75,10 +76,16 @@ function leerPolos() {
   };
 }
 
-/** Color de una correlacion: gris neutro en 0, azul hacia -1, rojo hacia +1. */
+/** Hasta donde llega la escala. En modo diferencia los valores viven en un
+    rango mucho mas chico que [-1,1]: con el dominio completo serian todos gris. */
+function dominioEscala() {
+  return estado.ruedas === 'diferencia' ? 0.5 : 1;
+}
+
+/** Color de una correlacion: gris neutro en 0, azul al polo negativo, rojo al positivo. */
 function colorRho(rho) {
   if (rho === null || rho === undefined || Number.isNaN(rho)) return 'transparent';
-  const k = Math.min(1, Math.abs(rho));
+  const k = Math.min(1, Math.abs(rho) / dominioEscala());
   const polo = rho < 0 ? POLOS.neg : POLOS.pos;
   const m = POLOS.medio;
   return oklabAHex(
@@ -112,20 +119,22 @@ function retornos(tk) {
   return out;
 }
 
-/** Pearson sobre las ruedas donde ambas series tienen dato. */
-function correlacion(xs, ys, desde) {
+/** Pearson sobre un conjunto explicito de ruedas.
+    Recibe indices en vez de un punto de inicio porque las ruedas de estres no
+    son un tramo contiguo: son los peores dias del S&P, dispersos en el tiempo. */
+function correlacion(xs, ys, indices) {
   let n = 0, sx = 0, sy = 0;
-  for (let i = desde; i < xs.length; i++) {
+  for (const i of indices) {
     const a = xs[i], b = ys[i];
-    if (a === null || b === null) continue;
+    if (a === null || b === null || a === undefined || b === undefined) continue;
     n++; sx += a; sy += b;
   }
   if (n < MIN_RUEDAS) return { rho: null, n };
   const mx = sx / n, my = sy / n;
   let vxy = 0, vx = 0, vy = 0;
-  for (let i = desde; i < xs.length; i++) {
+  for (const i of indices) {
     const a = xs[i], b = ys[i];
-    if (a === null || b === null) continue;
+    if (a === null || b === null || a === undefined || b === undefined) continue;
     const da = a - mx, db = b - my;
     vxy += da * db; vx += da * da; vy += db * db;
   }
@@ -133,24 +142,98 @@ function correlacion(xs, ys, desde) {
   return { rho: vxy / Math.sqrt(vx * vy), n };
 }
 
-/** Matriz completa para los tickers dados. */
-function calcularMatriz(tickers) {
-  const N = tickers.length;
-  const series = tickers.map(retornos);
+/** Indices [desde, fin) como array, para el caso normal de una ventana. */
+function rango(desde, hasta) {
+  const out = [];
+  for (let i = desde; i < hasta; i++) out.push(i);
+  return out;
+}
+
+/** Las ruedas del decil peor del S&P 500 sobre TODO el historico publicado.
+    No se limita a la ventana elegida a proposito: en 126 ruedas el decil peor
+    son 13 dias, con los que no se puede estimar una correlacion. Sobre los tres
+    anios publicados son ~76, que ya es un numero con el que se puede trabajar. */
+let _estres = null;
+function ruedasDeEstres() {
+  if (_estres) return _estres;
+  const spy = estado.datos.etfs.SPY;
+  if (!spy) return (_estres = { indices: [], umbral: null });
+  const conDato = [];
+  spy.ret.forEach((r, i) => { if (r !== null) conDato.push({ i, r }); });
+  conDato.sort((a, b) => a.r - b.r);
+  const corte = Math.max(MIN_RUEDAS, Math.round(conDato.length * 0.10));
+  const peores = conDato.slice(0, corte);
+  _estres = {
+    indices: peores.map((p) => p.i).sort((a, b) => a - b),
+    umbral: peores[peores.length - 1].r,
+    peor: peores[0].r,
+  };
+  return _estres;
+}
+
+/** Las ruedas restantes del MISMO periodo: la comparacion contra el estres
+    tiene que ser contra calma del mismo tramo, no contra la ventana elegida.
+    Si no, la diferencia mezclaria el efecto crisis con el efecto periodo. */
+let _calma = null;
+function ruedasDeCalma() {
+  if (_calma) return _calma;
+  const est = new Set(ruedasDeEstres().indices);
+  const spy = estado.datos.etfs.SPY;
+  _calma = [];
+  if (spy) spy.ret.forEach((r, i) => { if (r !== null && !est.has(i)) _calma.push(i); });
+  return _calma;
+}
+
+/** Ruedas que entran en el calculo, segun el modo elegido. */
+function indicesVigentes() {
   const largo = estado.datos.fechas.length;
-  const desde = Math.max(0, largo - estado.ventana);
+  if (estado.ruedas === 'todas') return rango(Math.max(0, largo - estado.ventana), largo);
+  return ruedasDeEstres().indices;
+}
+
+/** Matriz completa para los tickers dados. */
+function matrizSobre(series, indices, diagonal) {
+  const N = series.length;
   const rho = Array.from({ length: N }, () => new Array(N).fill(null));
   const cnt = Array.from({ length: N }, () => new Array(N).fill(0));
   for (let i = 0; i < N; i++) {
-    rho[i][i] = 1;
+    rho[i][i] = diagonal;
     for (let j = i + 1; j < N; j++) {
-      const r = correlacion(series[i], series[j], desde);
+      const r = correlacion(series[i], series[j], indices);
       rho[i][j] = rho[j][i] = r.rho;
       cnt[i][j] = cnt[j][i] = r.n;
     }
-    cnt[i][i] = correlacion(series[i], series[i], desde).n;
+    cnt[i][i] = correlacion(series[i], series[i], indices).n;
   }
   return { rho, cnt };
+}
+
+/** Matriz completa para los tickers dados, segun el modo de ruedas elegido. */
+function calcularMatriz(tickers) {
+  const series = tickers.map(retornos);
+  const largo = estado.datos.fechas.length;
+  const enVentana = rango(Math.max(0, largo - estado.ventana), largo);
+
+  if (estado.ruedas === 'todas') return matrizSobre(series, enVentana, 1);
+
+  const est = matrizSobre(series, ruedasDeEstres().indices, 1);
+  if (estado.ruedas === 'estres') return est;
+
+  // Diferencia: cuanto sube la correlacion cuando el mercado cae fuerte.
+  // La base son las ruedas de calma del MISMO periodo, no la ventana elegida:
+  // comparar contra otro tramo confundiria el efecto crisis con el del periodo.
+  const todo = matrizSobre(series, ruedasDeCalma(), 1);
+  const N = series.length;
+  const rho = Array.from({ length: N }, () => new Array(N).fill(null));
+  for (let i = 0; i < N; i++) {
+    rho[i][i] = 0;
+    for (let j = 0; j < N; j++) {
+      if (i === j) continue;
+      rho[i][j] = (est.rho[i][j] === null || todo.rho[i][j] === null)
+        ? null : est.rho[i][j] - todo.rho[i][j];
+    }
+  }
+  return { rho, cnt: est.cnt, esDiferencia: true };
 }
 
 /** Correlacion movil del par, para ver si el numero de hoy es estable. */
@@ -160,7 +243,7 @@ function correlacionMovil(a, b, ventana, maxPuntos) {
   const pts = [];
   const inicio = Math.max(ventana, N - maxPuntos);
   for (let t = inicio; t <= N; t++) {
-    const { rho } = correlacion(xs.slice(0, t), ys.slice(0, t), t - ventana);
+    const { rho } = correlacion(xs, ys, rango(t - ventana, t));
     pts.push({ i: t - 1, rho });
   }
   return pts;
@@ -254,6 +337,13 @@ function fechaCorta(iso) {
 
 function lecturaRho(r) {
   if (r === null) return 'sin datos suficientes';
+  if (estado.ruedas === 'diferencia') {
+    if (r >= 0.30) return 'la diversificacion se evapora en las caidas';
+    if (r >= 0.15) return 'se juntan bastante cuando el mercado cae';
+    if (r > -0.05) return 'se comportan parecido en calma y en caida';
+    if (r > -0.15) return 'se separan un poco en las caidas';
+    return 'se separan en las caidas: cubre mejor de lo que aparenta';
+  }
   if (r >= 0.9) return 'practicamente el mismo activo';
   if (r >= 0.7) return 'se mueven muy parecido';
   if (r >= 0.4) return 'se acompanian bastante';
@@ -457,8 +547,7 @@ function seleccionar(a, b) {
   estado.sel = [a, b];
   const E = estado.datos.etfs;
   const xs = retornos(a), ys = retornos(b);
-  const desde = Math.max(0, xs.length - estado.ventana);
-  const { rho, n } = correlacion(xs, ys, desde);
+  const { rho, n } = correlacion(xs, ys, indicesVigentes());
 
   $('#detalle-vacio').hidden = true;
   $('#detalle').hidden = false;
@@ -609,12 +698,25 @@ function descargarCSV() {
 /* ------------------------------------------------------------ chrome --- */
 
 function dibujarLeyenda() {
+  const d = dominioEscala();
   const paradas = [];
   for (let k = 0; k <= 20; k++) {
-    const r = -1 + (k / 20) * 2;
+    const r = -d + (k / 20) * 2 * d;
     paradas.push(`${colorRho(r)} ${(k / 20 * 100).toFixed(0)}%`);
   }
   $('#leyenda-barra').style.background = `linear-gradient(to right, ${paradas.join(',')})`;
+  const ticks = $('.leyenda-ticks');
+  const fmt = (v) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toString().replace('.', ',');
+  if (ticks) ticks.innerHTML = `<span>${fmt(-d)}</span><span>0</span><span>${fmt(d)}</span>`;
+  const cap = $('.leyenda figcaption');
+  const pie = $('.leyenda-pie');
+  if (estado.ruedas === 'diferencia') {
+    if (cap) cap.textContent = 'Cambio de correlacion';
+    if (pie) pie.textContent = 'Se separan en las caidas · igual · se juntan en las caidas';
+  } else {
+    if (cap) cap.textContent = 'Correlacion';
+    if (pie) pie.textContent = 'Se mueven al reves · sin relacion · se mueven juntos';
+  }
 }
 
 function dibujarChips() {
@@ -679,10 +781,87 @@ function encabezadoMapa() {
   const etq = sel.options[sel.selectedIndex].textContent.replace(/\s*\(.*\)/, '');
   const f = estado.datos.fechas;
   const desde = f[Math.max(0, f.length - estado.ventana)];
-  $('#sub-mapa').textContent =
-    `Retornos diarios en ${mon} — ${etq}, desde el ${fechaCorta(desde)}. `
-    + (estado.orden === 'cluster' ? 'Ordenado por similitud: los bloques son grupos que se mueven juntos.'
-      : estado.orden === 'categoria' ? 'Agrupado por categoría.' : 'Orden alfabético.');
+  const est = ruedasDeEstres();
+  const orden = estado.orden === 'cluster'
+    ? 'Ordenado por similitud: los bloques son grupos que se mueven juntos.'
+    : estado.orden === 'categoria' ? 'Agrupado por categoría.' : 'Orden alfabético.';
+
+  let base;
+  if (estado.ruedas === 'todas') {
+    base = `Retornos diarios en ${mon} — ${etq}, desde el ${fechaCorta(desde)}. `;
+  } else if (estado.ruedas === 'estres') {
+    base = `Retornos en ${mon}, sólo las ${est.indices.length} ruedas en que más cayó el `
+      + `S&P 500 (peor que ${(est.umbral * 100).toFixed(1).replace('.', ',')}% en el día), `
+      + `sobre los ${f.length} días publicados. `;
+  } else {
+    base = `Cuánto sube la correlación en las ${est.indices.length} peores ruedas del S&P 500 `
+      + `frente a las ${ruedasDeCalma().length} tranquilas del mismo período. `
+      + `Rojo = el par se junta justo cuando el mercado cae. `;
+  }
+  $('#sub-mapa').textContent = base + orden;
+}
+
+/** Titular del efecto crisis: la afirmacion de que las correlaciones se
+    disparan en las caidas, medida en vez de repetida. */
+function titularCrisis() {
+  const nodo = $('#titular-crisis');
+  if (!nodo) return;
+  const tks = estado.tickers;
+  if (tks.length < 4) { nodo.hidden = true; return; }
+  const series = tks.map(retornos);
+  const largo = estado.datos.fechas.length;
+  const est = ruedasDeEstres();
+  const mTodo = matrizSobre(series, ruedasDeCalma(), 1);
+  const mEst = matrizSobre(series, est.indices, 1);
+
+  const prom = (M) => {
+    let s = 0, n = 0;
+    for (let i = 0; i < tks.length; i++) {
+      for (let j = i + 1; j < tks.length; j++) {
+        if (M.rho[i][j] !== null) { s += M.rho[i][j]; n++; }
+      }
+    }
+    return n ? s / n : null;
+  };
+  const a = prom(mTodo), b = prom(mEst);
+  if (a === null || b === null) { nodo.hidden = true; return; }
+
+  // Par que mas se desarma: diversifica en calma y deja de hacerlo en la caida.
+  // Los apalancados e inversos quedan afuera —su salto es mecanico— y tambien
+  // contamos cuantos pares dan un salto grande, que es el dato de fondo.
+  const E = estado.datos.etfs;
+  const mecanico = (tk) => E[tk].categoria === 'Apalancado / Inverso';
+  let peor = null, saltones = 0, comparables = 0;
+  for (let i = 0; i < tks.length; i++) {
+    for (let j = i + 1; j < tks.length; j++) {
+      const t = mTodo.rho[i][j], e = mEst.rho[i][j];
+      if (t === null || e === null) continue;
+      if (mecanico(tks[i]) || mecanico(tks[j])) continue;
+      comparables++;
+      if (e - t >= 0.25) saltones++;
+      if (t > 0.35) continue;
+      const salto = e - t;
+      if (!peor || salto > peor.salto) peor = { salto, a: tks[i], b: tks[j], t, e };
+    }
+  }
+
+  nodo.hidden = false;
+  const sube = b > a;
+  nodo.innerHTML =
+    `<strong>La correlación media del panel pasa de ${fmtRho(a)} en las `
+    + `${ruedasDeCalma().length} ruedas tranquilas a ${fmtRho(b)} en las `
+    + `${est.indices.length} peores del S&P 500</strong> (mismo período, para que la `
+    + `comparación no mezcle el efecto crisis con el del momento). `
+    + (sube
+      ? `Es el efecto que hace que la diversificación falle justo cuando se la necesita: `
+        + `los activos se juntan en las caídas.`
+      : `Acá no se cumple el patrón habitual: en este panel la correlación no sube en las caídas.`)
+    + (peor
+      ? ` Pero el promedio tapa lo que pasa par a par: <strong>${saltones}</strong> de `
+        + `${comparables.toLocaleString('es-AR')} pares suben más de 0,25, y el caso más marcado `
+        + `es <strong>${peor.a} / ${peor.b}</strong>, que pasa de ${fmtRho(peor.t)} a `
+        + `${fmtRho(peor.e)}: diversifica en calma y deja de hacerlo justo en la caída.`
+      : '');
 }
 
 function recalcular() {
@@ -699,6 +878,7 @@ function recalcular() {
   };
 
   encabezadoMapa();
+  titularCrisis();
   notaCCL();
   dibujarMapa();
   dibujarExtremos();
@@ -738,6 +918,11 @@ function temaActual() {
 
 function conectar() {
   $('#f-ventana').addEventListener('change', (e) => { estado.ventana = +e.target.value; recalcular(); });
+  $('#f-ruedas').addEventListener('change', (e) => {
+    estado.ruedas = e.target.value;
+    dibujarLeyenda();
+    recalcular();
+  });
   $('#f-moneda').addEventListener('change', (e) => { estado.moneda = e.target.value; recalcular(); });
   $('#f-orden').addEventListener('change', (e) => { estado.orden = e.target.value; recalcular(); });
 

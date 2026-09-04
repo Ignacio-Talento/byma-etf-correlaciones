@@ -615,3 +615,15 @@ ul.drivers li:last-child { border-bottom: 0; }
   position: absolute; top: 50%; width: 2px; height: 13px;
   background: var(--tinta); transform: translate(-1px, -50%);
 }
+
+/* Titular del efecto crisis: la afirmacion, medida. */
+.titular-crisis {
+  margin: 12px 0 0; padding: 10px 12px; border-radius: var(--r);
+  background: var(--light-blue); border-left: 3px solid var(--cyan);
+  font-size: 12.5px; line-height: 1.55; color: var(--navy);
+}
+:root[data-theme="dark"] .titular-crisis,
+:root:not([data-theme="light"]) .titular-crisis {
+  background: rgba(0, 176, 240, .08); color: var(--tinta-2);
+}
+.titular-crisis strong { color: var(--tinta); }

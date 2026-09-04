@@ -47,6 +47,15 @@
   </div>
 
   <div class="filtro">
+    <label for="f-ruedas">Ruedas</label>
+    <select id="f-ruedas">
+      <option value="todas" selected>Todas las de la ventana</option>
+      <option value="estres">Sólo ruedas de caída (decil peor)</option>
+      <option value="diferencia">Cuánto sube en las caídas</option>
+    </select>
+  </div>
+
+  <div class="filtro">
     <label for="f-moneda">Moneda</label>
     <select id="f-moneda">
       <option value="usd" selected>Dolares</option>
@@ -103,6 +112,7 @@
         <svg id="mapa" role="img" aria-labelledby="titulo-mapa"></svg>
       </div>
       <p class="nota" id="nota-mapa"></p>
+      <p class="titular-crisis" id="titular-crisis" hidden></p>
     </section>
 
     <section class="panel panel-tabla" id="panel-tabla" hidden>

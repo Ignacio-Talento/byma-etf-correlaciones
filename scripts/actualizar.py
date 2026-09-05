@@ -25,6 +25,7 @@ import urllib.parse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import fuentes  # noqa: E402
+import publicar  # noqa: E402
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UNIVERSO = os.path.join(RAIZ, "universo.json")
@@ -54,6 +55,19 @@ LF = "\n"
 
 class SkipLiquidez(Exception):
     """No corresponde registrar liquidez en esta corrida."""
+
+
+class SkipPanel(Exception):
+    """El panel de BYMA no puede contestar en esta corrida."""
+
+
+def es_finde_en_bsas():
+    """True si en Buenos Aires es sabado o domingo.
+
+    Se calcula en hora argentina y no con la fecha del runner: el job corre en
+    UTC y las pasadas de la noche caen de madrugada en Buenos Aires.
+    """
+    return (dt.datetime.now(dt.UTC) - dt.timedelta(hours=3)).weekday() >= 5
 
 
 def sellar_assets():
@@ -124,6 +138,59 @@ def escribir_csv_precios(store):
         w.writerow(["fecha", "ticker", "cierre"])
         for f, tk, p in filas:
             w.writerow([f, tk, "%.6f" % p])
+
+
+# El adjclose de Yahoo llega en precision float32 y el factor de ajuste se
+# recalcula del lado del servidor en cada request: dos llamadas identicas a
+# --rango 10y devuelven precios distintos para 1703 de 2514 dias de SPY. Si se
+# pisa lo guardado con lo recien bajado, el 8,4% de los retornos cambia en el
+# ultimo decimal en CADA corrida y se recommitean los 3,6 MB del CSV sin que
+# haya pasado nada en el mercado.
+#
+# El umbral sale de medir, no de estimar. Bajando dos veces 10y de cada ticker,
+# la diferencia relativa entre ambas tiene mediana ~1e-7 pero cola larga: p99 de
+# 8e-7 y maximo observado de 1,35e-6 (JPMB). Un 1e-6 se queda corto y deja pasar
+# unos pocos dias por corrida, que es lo mismo que no filtrar: el archivo se
+# reescribe igual.
+#
+# 1e-5 queda ~7x por encima del ruido medido y sigue estando un orden y medio
+# por debajo del ajuste por dividendo mas chico que puede aparecer: un ETF que
+# rinda 0,1% anual mueve el adjclose 2,5e-4 en cada pago trimestral. Los splits
+# son de otra escala (>=1). O sea que las correcciones reales entran igual.
+TOL_REFETCH = 1e-5
+
+
+def fusionar_serie(guardado, serie):
+    """Mete `serie` en `guardado` ignorando el ruido de re-descarga.
+
+    Devuelve (nuevos, corregidos) para poder loguear cuando una serie se
+    restata de verdad, que es lo unico que deberia mover un dia viejo.
+    """
+    nuevos = corregidos = 0
+    for f, px in serie:
+        previo = guardado.get(f)
+        if previo is None:
+            guardado[f] = px
+            nuevos += 1
+        elif previo == 0 or abs(px / previo - 1) >= TOL_REFETCH:
+            guardado[f] = px
+            corregidos += 1
+    return nuevos, corregidos
+
+
+def enbyma_previo():
+    """{ticker: enByma} del dataset ya publicado, o vacio si no hay.
+
+    Sirve para las corridas en las que el panel no puede contestar: degradar a
+    None reescribiria el dataset entero cada fin de semana para volver a
+    escribirlo el lunes, y el dato anterior sigue siendo el mejor que hay.
+    """
+    try:
+        with open(SALIDA, encoding="utf-8") as fh:
+            return {tk: m.get("enByma")
+                    for tk, m in json.load(fh).get("etfs", {}).items()}
+    except (OSError, ValueError):
+        return {}
 
 
 def leer_csv_simple(ruta, col):
@@ -347,12 +414,26 @@ def main():
     tasa = leer_csv_simple(CSV_TASA, "tasa_anual_pct")
     liq = leer_csv_liquidez()
     avisos = []
+    # Arranca con lo que decia la corrida anterior. Solo se pisa si el panel
+    # de BYMA llega a contestar; si no —fin de semana, caida de la fuente, o
+    # una corrida --sin-red para resellar assets— se arrastra el ultimo dato
+    # bueno en vez de degradar los 58 a "no se sabe" y reescribir el dataset.
     en_byma = {tk: None for tk in tickers}
+    en_byma.update({tk: v for tk, v in enbyma_previo().items() if tk in en_byma})
 
     if not args.sin_red:
         # 1. Que cotiza hoy en BYMA
         try:
+            # El panel contesta que cotiza HOY. El fin de semana devuelve cero
+            # especies, y tomarlo al pie de la letra marcaria los 58 CEDEARs
+            # como deslistados y publicaria un aviso falso en el sitio.
+            if es_finde_en_bsas():
+                raise SkipPanel("fin de semana en Buenos Aires")
             especies, origen = fuentes.especies_byma()
+            # Un panel vacio en dia habil tampoco es una respuesta: son cientos
+            # de especies siempre. Es la fuente que fallo, no BYMA que vacio.
+            if not especies:
+                raise SkipPanel("el panel vino vacio")
             log("Panel BYMA (%s): %d especies" % (origen, len(especies)))
             for tk in tickers:
                 # Un indice no cotiza como CEDEAR: preguntarle al panel de
@@ -367,12 +448,19 @@ def main():
             if sugeridos:
                 avisos.append("BYMA lista ETFs que faltan en universo.json: %s"
                               % ", ".join(sugeridos))
+        except SkipPanel as e:
+            log("Panel BYMA: no se consulta (%s); se arrastra la corrida anterior" % e)
         except Exception as e:
             avisos.append("No se pudo validar el panel de BYMA: %s" % e)
 
         # 2. CCL primero: hace falta para pasar a dolares las series en pesos
         try:
-            ccl.update(dict(fuentes.serie_ccl()))
+            # Mismo criterio que en los precios: el CSV guarda 4 decimales y
+            # la API devuelve el float completo, asi que pisar a ciegas hace
+            # que un punado de niveles historicos baile un centavo entre una
+            # corrida con red y una --sin-red. Las restataciones de verdad
+            # —como la del 2026-09-04, que movio 0,4%— pasan el umbral.
+            fusionar_serie(ccl, fuentes.serie_ccl())
         except Exception as e:
             avisos.append("No se pudo actualizar el CCL: %s" % e)
 
@@ -395,10 +483,16 @@ def main():
                         if c:
                             conv.append((f, px / c))
                     serie = conv
-                precios.setdefault(tk, {}).update(dict(serie))
-                log("  [%2d/%d] %-6s %d ruedas%s" % (i, len(tickers), tk, len(serie),
+                nuevos, corregidos = fusionar_serie(
+                    precios.setdefault(tk, {}), serie)
+                log("  [%2d/%d] %-6s %d ruedas%s%s%s" % (
+                    i, len(tickers), tk, len(serie),
                     "  (%s, pasado a USD por CCL)" % simbolo
-                    if universo[tk].get("enPesos") else ""))
+                    if universo[tk].get("enPesos") else "",
+                    "  +%d nuevas" % nuevos if nuevos else "",
+                    # Un dia viejo que se mueve por encima del umbral es un
+                    # split o un dividendo, no ruido: conviene verlo.
+                    "  %d restatadas" % corregidos if corregidos else ""))
             except Exception as e:
                 fallaron.append(tk)
                 log("  [%2d/%d] %-5s FALLO: %s" % (i, len(tickers), tk, e))
@@ -414,7 +508,7 @@ def main():
             # Sin esto, los datos del viernes se guardarian como sabado y esa
             # rueda contaria dos veces en la mediana.
             ahora_ar = dt.datetime.now(dt.UTC) - dt.timedelta(hours=3)
-            if ahora_ar.weekday() >= 5:
+            if es_finde_en_bsas():
                 raise SkipLiquidez("fin de semana en Buenos Aires: el panel no es de hoy")
             hoy = ahora_ar.date().isoformat()
             panel = fuentes.panel_liquidez()
@@ -507,9 +601,7 @@ def main():
         },
     }
 
-    os.makedirs(os.path.dirname(SALIDA), exist_ok=True)
-    with open(SALIDA, "w", encoding="utf-8") as fh:
-        json.dump(dataset, fh, ensure_ascii=False, separators=(",", ":"))
+    cambio = publicar.escribir_json(SALIDA, dataset)
 
     sellados = sellar_assets()
     if sellados:
@@ -517,7 +609,13 @@ def main():
 
     kb = os.path.getsize(SALIDA) / 1024
     log("")
-    log("Escrito %s (%.0f KB)" % (os.path.relpath(SALIDA, RAIZ), kb))
+    if cambio:
+        log("Escrito %s (%.0f KB)" % (os.path.relpath(SALIDA, RAIZ), kb))
+    else:
+        # Pasada de red que no encontro nada nuevo: se deja el archivo como
+        # esta para que el commit del job no se dispare por el timestamp.
+        log("Sin cambios en %s (%.0f KB): no se reescribe"
+            % (os.path.relpath(SALIDA, RAIZ), kb))
     for a in avisos:
         log("  AVISO: %s" % a)
     log("Ultima rueda: %s" % fechas[-1])

@@ -43,6 +43,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import publicar  # noqa: E402
+
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UNIVERSO = os.path.join(RAIZ, "universo.json")
 CSV_PRECIOS = os.path.join(RAIZ, "data", "precios.csv")
@@ -592,9 +594,7 @@ def main():
         "turnoverAnual": {e: (sum(turnover[e]) / (len(turnover[e]) / 12))
                           if turnover[e] else None for e in ESTRATEGIAS_OPT},
     }
-    os.makedirs(os.path.dirname(SALIDA), exist_ok=True)
-    with open(SALIDA, "w", encoding="utf-8") as fh:
-        json.dump(salida, fh, ensure_ascii=False, separators=(",", ":"))
+    cambio = publicar.escribir_json(SALIDA, salida)
 
     if sin_dato[0]:
         log("Posiciones sin precio en su dia (se mantuvieron quietas): %d" % sin_dato[0])
@@ -619,8 +619,9 @@ def main():
         m = met_neto[e]
         log("  %-14s CAGR %6.1f%%  Sharpe %5.2f" % (nombres[e], m["cagr"] * 100, m["sharpe"]))
     log("")
-    log("Escrito %s (%.0f KB)" % (os.path.relpath(SALIDA, RAIZ),
-                                  os.path.getsize(SALIDA) / 1024))
+    log("%s %s (%.0f KB)" % ("Escrito" if cambio else "Sin cambios en",
+                             os.path.relpath(SALIDA, RAIZ),
+                             os.path.getsize(SALIDA) / 1024))
 
 
 if __name__ == "__main__":

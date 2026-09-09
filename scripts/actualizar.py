@@ -53,6 +53,11 @@ RUEDAS_PUBLICADAS = 1260
 LF = "\n"
 
 
+# BYMA cierra a las 17:00 de Buenos Aires. El panel de liquidez recien es el
+# del cierre despues de esa hora.
+CIERRE_BYMA_ART = 17
+
+
 class SkipLiquidez(Exception):
     """No corresponde registrar liquidez en esta corrida."""
 
@@ -504,12 +509,28 @@ def main():
         # 4. Liquidez del panel local: que se puede operar de verdad
         try:
             # Fecha en hora argentina, no la del runner: el job corre en UTC y
-            # la segunda pasada (06:00 UTC) cae de madrugada en Buenos Aires.
-            # Sin esto, los datos del viernes se guardarian como sabado y esa
-            # rueda contaria dos veces en la mediana.
+            # dos de las tres pasadas caen de madrugada o de manana en Buenos
+            # Aires. Sin esto, los datos del viernes se guardarian como sabado
+            # y esa rueda contaria dos veces en la mediana.
             ahora_ar = dt.datetime.now(dt.UTC) - dt.timedelta(hours=3)
             if es_finde_en_bsas():
                 raise SkipLiquidez("fin de semana en Buenos Aires: el panel no es de hoy")
+            # El panel publica volumen, operaciones y puntas DEL CIERRE, asi
+            # que solo tiene sentido leerlo con la rueda ya cerrada. Antes de
+            # eso hay dos formas de arruinar el archivo, y las dos pasaban:
+            #
+            #   02:57 ART: el panel todavia muestra el cierre de AYER, pero
+            #   `hoy` ya avanzo un dia, asi que se guardaban 58 filas del dia
+            #   anterior fechadas con el dia siguiente.
+            #   08:35 ART: preapertura, el panel viene vacio; se borraban esas
+            #   58 filas y no se escribia nada.
+            #
+            # Resultado: dos commits diarios de ida y vuelta, y una ventana en
+            # la que el sitio publicaba liquidez con la fecha corrida.
+            if ahora_ar.hour < CIERRE_BYMA_ART:
+                raise SkipLiquidez(
+                    "todavia no cerro BYMA (%02d:%02d ART): el panel no es el del cierre"
+                    % (ahora_ar.hour, ahora_ar.minute))
             hoy = ahora_ar.date().isoformat()
             panel = fuentes.panel_liquidez()
             liq = [f for f in liq if f["fecha"] != hoy]

@@ -14,11 +14,22 @@ on:
     # la plataforma y los que caen en punto o a la media son los mas cargados,
     # que es justo donde se acumula la demora.
     #
-    # 22:37 UTC = 19:37 ART, despues del cierre de EE.UU. y con el CCL del dia.
-    - cron: "37 22 * * 1-5"
-    # 01:13 UTC = 22:13 ART. Cubre el hueco de la noche.
-    - cron: "13 1 * * 2-6"
-    # 06:23 UTC = 03:23 ART. Ultima red antes de que arranque el dia.
+    # Los horarios salen de medir cuando Yahoo publica el bar diario, que no
+    # es a hora fija. El 2026-09-08 el runner todavia no lo tenia a las 00:28
+    # UTC (4h28m despues del cierre) y si a las 05:57; el 2026-09-09 ya estaba
+    # a las 23:18 UTC (3h18m). O sea que la demora va de 3 a 10 horas y no
+    # depende del tiempo transcurrido. La escalera cubre esa ventana entera.
+    #
+    # Esto se puede hacer recien ahora: hasta que el pipeline dejo de
+    # reescribir el dataset por ruido, cada pasada era un commit. Una pasada
+    # que no encuentra nada nuevo ahora no genera ninguno, asi que sobran
+    # gratis.
+    #
+    # 23:31 UTC = 20:31 ART, +3h31m del cierre. Agarra los dias rapidos.
+    - cron: "31 23 * * 1-5"
+    # 02:19 UTC = 23:19 ART, +6h19m.
+    - cron: "19 2 * * 2-6"
+    # 06:23 UTC = 03:23 ART, +10h23m. La red de los dias lentos.
     - cron: "23 6 * * 2-6"
   workflow_dispatch:
 

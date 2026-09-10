@@ -57,6 +57,12 @@ LF = "\n"
 # del cierre despues de esa hora.
 CIERRE_BYMA_ART = 17
 
+# Precision con la que se guardan los CSV. fusionar_serie redondea a esto al
+# entrar y los writers escriben con esto, asi que memoria y archivo tienen
+# siempre el mismo numero.
+DEC_PRECIOS = 6
+DEC_CCL = 4
+
 
 class SkipLiquidez(Exception):
     """No corresponde registrar liquidez en esta corrida."""
@@ -73,6 +79,19 @@ def es_finde_en_bsas():
     UTC y las pasadas de la noche caen de madrugada en Buenos Aires.
     """
     return (dt.datetime.now(dt.UTC) - dt.timedelta(hours=3)).weekday() >= 5
+
+
+def ultima_rueda_cerrada_ar():
+    """Fecha ISO de la ultima rueda de BYMA que ya cerro, en hora argentina.
+
+    Antes de las 17:00 la rueda de hoy esta abierta o ni empezo, asi que la
+    ultima cerrada es la de ayer. No mira feriados ni fines de semana: alcanza
+    con que nunca devuelva un dia que todavia no termino.
+    """
+    ahora = dt.datetime.now(dt.UTC) - dt.timedelta(hours=3)
+    if ahora.hour < CIERRE_BYMA_ART:
+        ahora -= dt.timedelta(days=1)
+    return ahora.date().isoformat()
 
 
 def sellar_assets():
@@ -142,7 +161,7 @@ def escribir_csv_precios(store):
         w = csv.writer(fh, lineterminator=LF)
         w.writerow(["fecha", "ticker", "cierre"])
         for f, tk, p in filas:
-            w.writerow([f, tk, "%.6f" % p])
+            w.writerow([f, tk, "%.*f" % (DEC_PRECIOS, p)])
 
 
 # El adjclose de Yahoo llega en precision float32 y el factor de ajuste se
@@ -165,14 +184,23 @@ def escribir_csv_precios(store):
 TOL_REFETCH = 1e-5
 
 
-def fusionar_serie(guardado, serie):
+def fusionar_serie(guardado, serie, decimales):
     """Mete `serie` en `guardado` ignorando el ruido de re-descarga.
+
+    `decimales` es la precision con la que despues se escribe el CSV, y se
+    redondea al entrar, no solo al escribir. Si no, el dia que un precio
+    aparece por primera vez el retorno sale del float completo que bajo de
+    Yahoo, y en todas las corridas siguientes del valor leido del CSV. Difieren
+    en el sexto decimal —el 2026-09-09 el retorno de IJH paso de -0,010673 a
+    -0,010672 sin que cambiara ningun precio guardado— y eso alcanzaba para un
+    commit extra al dia siguiente de cada cierre.
 
     Devuelve (nuevos, corregidos) para poder loguear cuando una serie se
     restata de verdad, que es lo unico que deberia mover un dia viejo.
     """
     nuevos = corregidos = 0
     for f, px in serie:
+        px = round(px, decimales)
         previo = guardado.get(f)
         if previo is None:
             guardado[f] = px
@@ -230,7 +258,7 @@ def escribir_csv_ccl(store):
         w = csv.writer(fh, lineterminator=LF)
         w.writerow(["fecha", "ccl"])
         for f in sorted(store):
-            w.writerow([f, "%.4f" % store[f]])
+            w.writerow([f, "%.*f" % (DEC_CCL, store[f])])
 
 
 # ----------------------------------------------------------------- calculo ---
@@ -465,7 +493,16 @@ def main():
             # que un punado de niveles historicos baile un centavo entre una
             # corrida con red y una --sin-red. Las restataciones de verdad
             # —como la del 2026-09-04, que movio 0,4%— pasan el umbral.
-            fusionar_serie(ccl, fuentes.serie_ccl())
+            #
+            # Ademas se descartan las filas de ruedas que todavia no cerraron.
+            # La API trae el CCL con un dia de adelanto: a las 22:22 ART del
+            # miercoles 2026-09-09 ya habia una fila del jueves 10, antes de
+            # que el jueves operara. Esa fila entraba en una pasada posterior
+            # al cierre y generaba otro commit. Un CCL de un dia que no termino
+            # no puede ser un cierre.
+            tope = ultima_rueda_cerrada_ar()
+            fusionar_serie(ccl, [(f, v) for f, v in fuentes.serie_ccl() if f <= tope],
+                           DEC_CCL)
         except Exception as e:
             avisos.append("No se pudo actualizar el CCL: %s" % e)
 
@@ -489,7 +526,7 @@ def main():
                             conv.append((f, px / c))
                     serie = conv
                 nuevos, corregidos = fusionar_serie(
-                    precios.setdefault(tk, {}), serie)
+                    precios.setdefault(tk, {}), serie, DEC_PRECIOS)
                 log("  [%2d/%d] %-6s %d ruedas%s%s%s" % (
                     i, len(tickers), tk, len(serie),
                     "  (%s, pasado a USD por CCL)" % simbolo

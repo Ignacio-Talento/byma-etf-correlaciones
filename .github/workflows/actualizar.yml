@@ -99,7 +99,14 @@ jobs:
             echo "Sin cambios: no se commitea."
           else
             ULT=$(python -c "import json;print(json.load(open('docs/data/dataset.json',encoding='utf-8'))['ultimaRueda'])")
-            git commit -m "Cierre $ULT"
+            # El titulo describe lo que entro de verdad: el cierre llega en dos
+            # tandas y la primera salia titulada con la rueda anterior (ver
+            # scripts/mensaje_commit.py). Es cosmetico, asi que si el script
+            # falla se vuelve al titulo de siempre en vez de frenar la
+            # publicacion del dato.
+            MSG=$(python scripts/mensaje_commit.py) || MSG=""
+            [ -n "$MSG" ] || MSG="Cierre $ULT"
+            git commit -m "$MSG"
             git push
           fi
 

@@ -95,7 +95,43 @@ def serie_yahoo(ticker, rango="5y"):
     porfecha = {}
     for f, p in filas:
         porfecha[f] = p
+
+    # El bar del dia en curso NO es un cierre: con la rueda abierta, Yahoo lo
+    # va actualizando con el precio del momento. El 2026-09-11 una corrida a
+    # mano a las 10:39 ART lo publico como "Cierre 2026-09-11", nueve minutos
+    # despues de la apertura de EE.UU. Se descarta hasta que termina la rueda
+    # regular, con el horario que informa Yahoo para ese mercado: ya contempla
+    # el cambio de hora, y que ^IRX cierra una hora antes que las acciones.
+    abierta = rueda_abierta(r.get("meta") or {})
+    if abierta:
+        porfecha.pop(abierta, None)
     return sorted(porfecha.items())
+
+
+# Margen despues del cierre antes de aceptar el bar del dia: la subasta de
+# cierre imprime unos minutos tarde y el primer valor puede no ser el final.
+MARGEN_CIERRE_S = 30 * 60
+
+
+def rueda_abierta(meta):
+    """Fecha ISO de la rueda en curso si todavia no cerro, o None.
+
+    Sale de meta.currentTradingPeriod.regular. Si Yahoo no lo manda, criterio
+    conservador: ninguno de los mercados que se siguen cierra despues de las
+    21:00 UTC, asi que el dia UTC en curso se da por abierto hasta las 21:30.
+    """
+    import datetime as dt
+
+    ahora = dt.datetime.now(dt.UTC)
+    reg = (meta.get("currentTradingPeriod") or {}).get("regular") or {}
+    if reg.get("start") and reg.get("end"):
+        if ahora.timestamp() < reg["end"] + MARGEN_CIERRE_S:
+            return dt.datetime.fromtimestamp(reg["start"], dt.UTC).strftime("%Y-%m-%d")
+        return None
+    limite = ahora.replace(hour=21, minute=0, second=0, microsecond=0)
+    if ahora.timestamp() < limite.timestamp() + MARGEN_CIERRE_S:
+        return ahora.strftime("%Y-%m-%d")
+    return None
 
 
 # --------------------------------------------------------------------------

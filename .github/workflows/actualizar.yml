@@ -31,6 +31,17 @@ on:
     - cron: "19 2 * * 2-6"
     # 06:23 UTC = 03:23 ART, +10h23m. La red de los dias lentos.
     - cron: "23 6 * * 2-6"
+    # 16:47 UTC = 13:47 ART del sabado, +20h47m del cierre del viernes.
+    #
+    # Las tres de arriba son de lunes a viernes, asi que la ultima chance del
+    # cierre del viernes era la del sabado a las 03:23. Si Yahoo publicaba
+    # despues de esa —y el 2026-09-11 lo hizo entre 5,5 y 11 horas despues del
+    # cierre, con el margen justo—, el sitio se quedaba con el jueves hasta el
+    # lunes a la noche. Esta cierra el hueco.
+    #
+    # En sabado no se consulta el panel de BYMA ni se registra liquidez, asi
+    # que si Yahoo ya publico esta pasada no encuentra nada y no commitea.
+    - cron: "47 16 * * 6"
   workflow_dispatch:
 
 permissions:

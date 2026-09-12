@@ -85,13 +85,22 @@ def ultima_rueda_cerrada_ar():
     """Fecha ISO de la ultima rueda de BYMA que ya cerro, en hora argentina.
 
     Antes de las 17:00 la rueda de hoy esta abierta o ni empezo, asi que la
-    ultima cerrada es la de ayer. No mira feriados ni fines de semana: alcanza
-    con que nunca devuelva un dia que todavia no termino.
+    ultima cerrada es la de ayer. Y sabado y domingo no hay rueda: se retrocede
+    hasta el viernes. Sin eso, la pasada del sabado a la tarde daba por cerrada
+    "la rueda del sabado" y guardaba el CCL que la API publica igual los fines
+    de semana, que no lo usa nadie —el eje del tablero son solo ruedas— pero
+    generaba un commit por sabado (fabe8bc).
+
+    No mira feriados: en un feriado la API publica el mismo valor del dia
+    anterior, asi que el umbral relativo de fusionar_serie lo descarta solo.
     """
     ahora = dt.datetime.now(dt.UTC) - dt.timedelta(hours=3)
     if ahora.hour < CIERRE_BYMA_ART:
         ahora -= dt.timedelta(days=1)
-    return ahora.date().isoformat()
+    dia = ahora.date()
+    while dia.weekday() >= 5:
+        dia -= dt.timedelta(days=1)
+    return dia.isoformat()
 
 
 def sellar_assets():
